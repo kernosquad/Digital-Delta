@@ -1,4 +1,5 @@
 import db from '@adonisjs/lucid/services/db';
+import { DateTime } from 'luxon';
 
 import type { UserRole } from '#models/user';
 import type {
@@ -7,11 +8,19 @@ import type {
   OtpVerifyType,
   ProvisionKeyType,
   RegisterType,
+  VerifyEmailType,
 } from './auth.validator.js';
 import type { HttpContext } from '@adonisjs/core/http';
 
 import User from '#models/user';
 import { EventBus } from '#services/event_bus';
+import { MailService } from '#services/mail_service';
+
+const mailService = new MailService();
+
+function generateVerificationCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 export class AuthService {
   async login(ctx: HttpContext, payload: LoginType) {
@@ -52,6 +61,7 @@ export class AuthService {
     if (existing) {
       return response.status(409).sendError('Email already registered');
     }
+    const code = generateVerificationCode();
     const user = await User.create({
       name: payload.name,
       email: payload.email,
@@ -59,13 +69,58 @@ export class AuthService {
       password: payload.password,
       role: (payload.role ?? 'field_volunteer') as UserRole,
       status: 'active',
+      emailVerificationCode: code,
+      emailVerificationExpiresAt: DateTime.now().plus({ minutes: 15 }),
     });
-    return response
-      .status(201)
-      .sendFormatted(
-        { user: { id: user.id, name: user.name, email: user.email, role: user.role } },
-        'Account created. Proceed to OTP setup and key provisioning.'
-      );
+    await mailService.sendVerificationEmail(user.email, user.name, code);
+    return response.status(201).sendFormatted(
+      {
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        email_verified: false,
+      },
+      'Account created. A verification code has been sent to your email.'
+    );
+  }
+
+  async verifyEmail({ auth, response }: HttpContext, payload: VerifyEmailType) {
+    const user = auth.user!;
+    if (user.emailVerifiedAt) {
+      return response.sendFormatted({ email_verified: true }, 'Email already verified');
+    }
+    if (
+      !user.emailVerificationCode ||
+      !user.emailVerificationExpiresAt ||
+      DateTime.now() > user.emailVerificationExpiresAt
+    ) {
+      return response.status(400).sendError('Verification code expired. Request a new one.');
+    }
+    if (user.emailVerificationCode !== payload.code) {
+      return response.status(422).sendError('Invalid verification code');
+    }
+    await user
+      .merge({
+        emailVerifiedAt: DateTime.now(),
+        emailVerificationCode: null,
+        emailVerificationExpiresAt: null,
+      })
+      .save();
+    return response.sendFormatted({ email_verified: true }, 'Email verified successfully');
+  }
+
+  async resendVerification({ auth, response }: HttpContext) {
+    const user = auth.user!;
+    if (user.emailVerifiedAt) {
+      return response.status(400).sendError('Email is already verified');
+    }
+    const code = generateVerificationCode();
+    await user
+      .merge({
+        emailVerificationCode: code,
+        emailVerificationExpiresAt: DateTime.now().plus({ minutes: 15 }),
+      })
+      .save();
+    await mailService.sendVerificationEmail(user.email, user.name, code);
+    return response.sendFormatted(null, 'Verification code resent');
   }
 
   async logout({ response, auth }: HttpContext) {

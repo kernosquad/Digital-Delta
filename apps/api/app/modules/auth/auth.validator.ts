@@ -53,3 +53,10 @@ export const provisionKeyValidator = vine.compile(
   })
 );
 export type ProvisionKeyType = Infer<typeof provisionKeyValidator>;
+
+export const verifyEmailValidator = vine.compile(
+  vine.object({
+    code: vine.string().fixedLength(6),
+  })
+);
+export type VerifyEmailType = Infer<typeof verifyEmailValidator>;

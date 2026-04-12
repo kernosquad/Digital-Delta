@@ -1,9 +1,14 @@
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid';
 import { compose } from '@adonisjs/core/helpers';
 import hash from '@adonisjs/core/services/hash';
-import { BaseModel, column } from '@adonisjs/lucid/orm';
+import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm';
 
+import type { HasMany } from '@adonisjs/lucid/types/relations';
 import type { DateTime } from 'luxon';
+
+import AuthLog from '#models/auth_log';
+import OtpSecret from '#models/otp_secret';
+import UserKey from '#models/user_key';
 
 const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
   uids: ['email'],
@@ -41,6 +46,15 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column()
   declare status: UserStatus;
 
+  @column({ serializeAs: null })
+  declare emailVerificationCode: string | null;
+
+  @column.dateTime({ serializeAs: null })
+  declare emailVerificationExpiresAt: DateTime | null;
+
+  @column.dateTime()
+  declare emailVerifiedAt: DateTime | null;
+
   @column.dateTime()
   declare lastSeenAt: DateTime | null;
 
@@ -52,4 +66,14 @@ export default class User extends compose(BaseModel, AuthFinder) {
 
   @column.dateTime()
   declare deletedAt: DateTime | null;
+
+  // ── Relations ──────────────────────────────────────────────────────────
+  @hasMany(() => UserKey)
+  declare userKeys: HasMany<typeof UserKey>;
+
+  @hasMany(() => OtpSecret)
+  declare otpSecrets: HasMany<typeof OtpSecret>;
+
+  @hasMany(() => AuthLog)
+  declare authLogs: HasMany<typeof AuthLog>;
 }

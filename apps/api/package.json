@@ -63,7 +63,8 @@
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.2",
     "mysql2": "^3.15.3",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "resend": "^6.10.0"
   },
   "hotHook": {
     "boundaries": [
