@@ -1,5 +1,6 @@
 import db from '@adonisjs/lucid/services/db';
 
+import type { UserRole } from '#models/user';
 import type {
   LoginType,
   OtpSetupType,
@@ -17,7 +18,7 @@ export class AuthService {
     const { request, response, auth } = ctx;
     const user = await User.verifyCredentials(payload.email, payload.password);
     if (user.status !== 'active') {
-      return response.forbidden({ error: 'Account is suspended or inactive' });
+      return response.status(403).sendError('Account is suspended or inactive');
     }
     const token = await auth.use('jwt').generate(user);
     await db.from('users').where('id', user.id).update({ last_seen_at: new Date() });
@@ -49,20 +50,22 @@ export class AuthService {
   async register({ response }: HttpContext, payload: RegisterType) {
     const existing = await User.findBy('email', payload.email);
     if (existing) {
-      return response.conflict({ error: 'Email already registered' });
+      return response.status(409).sendError('Email already registered');
     }
     const user = await User.create({
       name: payload.name,
       email: payload.email,
       phone: payload.phone ?? null,
       password: payload.password,
-      role: (payload.role ?? 'field_volunteer') as any,
+      role: (payload.role ?? 'field_volunteer') as UserRole,
       status: 'active',
     });
-    return response.created({
-      message: 'Account created. Proceed to OTP setup and key provisioning.',
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    });
+    return response
+      .status(201)
+      .sendFormatted(
+        { user: { id: user.id, name: user.name, email: user.email, role: user.role } },
+        'Account created. Proceed to OTP setup and key provisioning.'
+      );
   }
 
   async logout({ response, auth }: HttpContext) {
@@ -74,12 +77,12 @@ export class AuthService {
       created_at: new Date(),
     });
     response.clearCookie('jwt_token');
-    return response.ok({ message: 'Logged out' });
+    return response.sendFormatted('Logged out');
   }
 
   async me({ auth, response }: HttpContext) {
     const user = auth.user!;
-    return response.ok({
+    return response.sendFormatted({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -93,11 +96,10 @@ export class AuthService {
   async setupOtp({ response, auth }: HttpContext, payload: OtpSetupType) {
     const user = auth.user!;
     // TODO: generate TOTP secret using otplib
-    return response.ok({
-      message: 'OTP setup — implement with otplib or speakeasy',
-      device_id: payload.device_id,
-      user_id: user.id,
-    });
+    return response.sendFormatted(
+      { device_id: payload.device_id, user_id: user.id },
+      'OTP setup — implement with otplib or speakeasy'
+    );
   }
 
   async verifyOtp({ auth, response }: HttpContext, payload: OtpVerifyType) {
@@ -109,7 +111,7 @@ export class AuthService {
       .where('is_active', true)
       .first();
     if (!otpRecord) {
-      return response.notFound({ error: 'No OTP configured for this device' });
+      return response.status(404).sendError('No OTP configured for this device');
     }
     // TODO: decrypt stored secret and verify code
     await db.table('auth_logs').insert({
@@ -119,7 +121,7 @@ export class AuthService {
       event_hash: '',
       created_at: new Date(),
     });
-    return response.ok({ verified: true });
+    return response.sendFormatted({ verified: true });
   }
 
   async provisionKey({ auth, response }: HttpContext, payload: ProvisionKeyType) {
@@ -146,6 +148,8 @@ export class AuthService {
       created_at: new Date(),
     });
     EventBus.publish('sensor_update', { type: 'key_provision', userId: user.id });
-    return response.created({ message: 'Public key registered', device_id: payload.device_id });
+    return response
+      .status(201)
+      .sendFormatted({ device_id: payload.device_id }, 'Public key registered');
   }
 }

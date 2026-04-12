@@ -32,7 +32,7 @@ export class HandoffService {
 
     const data = await query;
 
-    return response.ok({ data });
+    return response.sendFormatted(data);
   }
 
   async show(ctx: HttpContext) {
@@ -61,10 +61,10 @@ export class HandoffService {
       .first();
 
     if (!handoff) {
-      return response.notFound({ message: 'Handoff event not found' });
+      return response.status(404).sendError('Handoff event not found');
     }
 
-    return response.ok(handoff);
+    return response.sendFormatted(handoff);
   }
 
   async store(ctx: HttpContext, payload: StoreHandoffType) {
@@ -73,12 +73,12 @@ export class HandoffService {
     // Validate both vehicles are registered
     const droneVehicle = await db.from('vehicles').where('id', payload.drone_vehicle_id).first();
     if (!droneVehicle) {
-      return response.unprocessableEntity({ message: 'Drone vehicle not found' });
+      return response.status(422).sendError('Drone vehicle not found');
     }
 
     const groundVehicle = await db.from('vehicles').where('id', payload.ground_vehicle_id).first();
     if (!groundVehicle) {
-      return response.unprocessableEntity({ message: 'Ground vehicle not found' });
+      return response.status(422).sendError('Ground vehicle not found');
     }
 
     const [handoffId] = await db.table('handoff_events').insert({
@@ -99,7 +99,7 @@ export class HandoffService {
       missionId: payload.mission_id,
     });
 
-    return response.created({ handoff_id: handoffId });
+    return response.status(201).sendFormatted({ handoff_id: handoffId });
   }
 
   async complete(ctx: HttpContext, payload: CompleteHandoffType) {
@@ -109,7 +109,7 @@ export class HandoffService {
 
     const handoff = await db.from('handoff_events').where('id', handoffId).first();
     if (!handoff) {
-      return response.notFound({ message: 'Handoff event not found' });
+      return response.status(404).sendError('Handoff event not found');
     }
 
     await db
@@ -128,6 +128,6 @@ export class HandoffService {
       handoffId,
     });
 
-    return response.ok({ message: 'Handoff marked as completed', handoff_id: handoffId });
+    return response.sendFormatted({ handoff_id: handoffId }, 'Handoff marked as completed');
   }
 }

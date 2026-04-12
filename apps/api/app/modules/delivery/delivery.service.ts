@@ -12,7 +12,7 @@ export class DeliveryService {
     const { nonce } = request.only(['nonce']);
     const used = await db.from('used_nonces').where('nonce', nonce).first();
 
-    return response.ok({ is_used: !!used });
+    return response.sendFormatted({ is_used: !!used });
   }
 
   async createReceipt(ctx: HttpContext, payload: CreateReceiptType) {
@@ -20,10 +20,7 @@ export class DeliveryService {
 
     const nonceUsed = await db.from('used_nonces').where('nonce', payload.qr_nonce).first();
     if (nonceUsed) {
-      return response.unprocessableEntity({
-        error: 'Nonce already used — replay attack detected',
-        code: 'NONCE_REPLAYED',
-      });
+      return response.status(422).sendError('Nonce already used — replay attack detected');
     }
 
     const lastReceipt = await db
@@ -63,7 +60,7 @@ export class DeliveryService {
       updated_at: new Date(),
     });
 
-    return response.created({
+    return response.status(201).sendFormatted({
       receipt_id: receiptId,
       receipt_hash: receiptHash,
       chain_verified: !!previousHash,
@@ -75,7 +72,7 @@ export class DeliveryService {
 
     const receipt = await db.from('delivery_receipts').where('id', params.id).firstOrFail();
 
-    return response.ok({ data: receipt });
+    return response.sendFormatted(receipt);
   }
 
   async receiptsByMission(ctx: HttpContext) {
@@ -86,6 +83,6 @@ export class DeliveryService {
       .where('mission_id', params.missionId)
       .orderBy('created_at');
 
-    return response.ok({ data: receipts });
+    return response.sendFormatted(receipts);
   }
 }

@@ -40,7 +40,7 @@ export class MissionsService {
 
     query.orderByRaw("FIELD(m.priority_class,'p0_critical','p1_high','p2_standard','p3_low')");
 
-    return response.ok({ data: await query });
+    return response.sendFormatted(await query);
   }
 
   async show(ctx: HttpContext) {
@@ -63,7 +63,7 @@ export class MissionsService {
       .orderBy('l.seq_order')
       .select('l.*', 'f.name as from_name', 't.name as to_name', 'r.route_type');
 
-    return response.ok({ ...mission, cargo, legs });
+    return response.sendFormatted({ ...mission, cargo, legs });
   }
 
   async showRoute(ctx: HttpContext) {
@@ -76,7 +76,7 @@ export class MissionsService {
       .orderBy('l.seq_order')
       .select('l.*', 'r.edge_code', 'r.route_type', 'r.current_travel_mins', 'r.is_flooded');
 
-    return response.ok({ data: legs });
+    return response.sendFormatted(legs);
   }
 
   async store(ctx: HttpContext, payload: StoreMissionType) {
@@ -126,7 +126,7 @@ export class MissionsService {
       priority: payload.priority_class,
     });
 
-    return response.created({ mission_id: missionId, mission_code: missionCode });
+    return response.status(201).sendFormatted({ mission_id: missionId, mission_code: missionCode });
   }
 
   async updateStatus(ctx: HttpContext, payload: UpdateStatusType) {
@@ -143,7 +143,7 @@ export class MissionsService {
 
     EventBus.publish('mission_update', { missionId: Number(params.id), status: payload.status });
 
-    return response.ok({ message: 'Mission status updated' });
+    return response.sendFormatted('Mission status updated');
   }
 
   async reroute(ctx: HttpContext) {
@@ -151,7 +151,7 @@ export class MissionsService {
 
     EventBus.publish('mission_update', { missionId: Number(params.id), event: 'rerouted' });
 
-    return response.ok({ message: 'Reroute triggered — implement VRP engine here' });
+    return response.sendFormatted('Reroute triggered — implement VRP engine here');
   }
 
   async preempt(ctx: HttpContext, payload: PreemptType) {
@@ -177,6 +177,6 @@ export class MissionsService {
       preemptedBy: payload.preempting_mission_id,
     });
 
-    return response.ok({ message: 'Mission preempted' });
+    return response.sendFormatted('Mission preempted');
   }
 }
