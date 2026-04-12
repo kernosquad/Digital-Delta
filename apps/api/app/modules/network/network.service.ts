@@ -41,7 +41,7 @@ export class NetworkService {
         'allowed_vehicles'
       );
 
-    return response.ok({ nodes, edges, fetched_at: new Date().toISOString() });
+    return response.sendFormatted({ nodes, edges, fetched_at: new Date().toISOString() });
   }
 
   async edges(ctx: HttpContext) {
@@ -54,7 +54,7 @@ export class NetworkService {
     if (routeType) query.where('route_type', routeType);
     if (isFlooded !== undefined) query.where('is_flooded', isFlooded === 'true');
 
-    return response.ok({ data: await query });
+    return response.sendFormatted(await query);
   }
 
   async showEdge(ctx: HttpContext) {
@@ -67,7 +67,7 @@ export class NetworkService {
       .where('is_active', true)
       .first();
 
-    return response.ok({ ...edge, prediction });
+    return response.sendFormatted({ ...edge, prediction });
   }
 
   async compute(ctx: HttpContext) {
@@ -78,7 +78,7 @@ export class NetworkService {
     const vehicle = request.input('vehicle', 'truck');
 
     if (!fromCode || !toCode) {
-      return response.badRequest({ error: 'from and to query params are required' });
+      return response.status(400).sendError('from and to query params are required');
     }
 
     const allowedType = vehicle === 'truck' ? 'road' : vehicle === 'speedboat' ? 'river' : 'airway';
@@ -100,16 +100,13 @@ export class NetworkService {
     const toNode = await db.from('locations').where('node_code', toCode).first();
 
     if (!fromNode || !toNode) {
-      return response.notFound({ error: 'One or both locations not found' });
+      return response.status(404).sendError('One or both locations not found');
     }
 
-    return response.ok({
-      message: 'VRP compute — implement Dijkstra/A* here',
-      from: fromNode,
-      to: toNode,
-      vehicle,
-      available_edges: edges.length,
-    });
+    return response.sendFormatted(
+      { from: fromNode, to: toNode, vehicle, available_edges: edges.length },
+      'VRP compute — implement Dijkstra/A* here'
+    );
   }
 
   async storeEdge(ctx: HttpContext, payload: StoreEdgeType) {
@@ -126,7 +123,7 @@ export class NetworkService {
       updated_at: new Date(),
     });
 
-    return response.created({ data: await db.from('routes').where('id', id).first() });
+    return response.status(201).sendFormatted(await db.from('routes').where('id', id).first());
   }
 
   async updateEdgeStatus(ctx: HttpContext, payload: EdgeStatusType) {
@@ -163,6 +160,6 @@ export class NetworkService {
       ...payload,
     });
 
-    return response.ok({ message: 'Edge status updated' });
+    return response.sendFormatted('Edge status updated');
   }
 }

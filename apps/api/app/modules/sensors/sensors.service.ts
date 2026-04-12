@@ -22,7 +22,7 @@ export class SensorsService {
 
     EventBus.publish('sensor_update', { count: payload.readings.length });
 
-    return response.created({ inserted: rows.length });
+    return response.status(201).sendFormatted({ inserted: rows.length });
   }
 
   async readings(ctx: HttpContext) {
@@ -40,7 +40,7 @@ export class SensorsService {
 
     const data = await query;
 
-    return response.ok({ data });
+    return response.sendFormatted(data);
   }
 
   async predictions(ctx: HttpContext) {
@@ -53,7 +53,7 @@ export class SensorsService {
       .select('p.*', 'r.edge_code')
       .orderBy('p.impassability_prob', 'desc');
 
-    return response.ok({ data });
+    return response.sendFormatted(data);
   }
 
   async prediction(ctx: HttpContext) {
@@ -69,9 +69,9 @@ export class SensorsService {
       .first();
 
     if (!prediction) {
-      return response.notFound({ message: 'No active prediction found for this route' });
+      return response.status(404).sendError('No active prediction found for this route');
     }
 
-    return response.ok(prediction);
+    return response.sendFormatted(prediction);
   }
 }

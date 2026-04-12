@@ -15,7 +15,7 @@ export class LocationsService {
     if (type) query.where('type', type);
     if (isFlooded !== undefined) query.where('is_flooded', isFlooded === 'true');
 
-    return response.ok({ data: await query.select('*').orderBy('node_code') });
+    return response.sendFormatted(await query.select('*').orderBy('node_code'));
   }
 
   async show(ctx: HttpContext) {
@@ -28,7 +28,7 @@ export class LocationsService {
       .where('i.location_id', params.id)
       .select('s.name', 's.category', 's.unit', 'i.quantity', 'i.reserved_quantity');
 
-    return response.ok({ ...location, inventory });
+    return response.sendFormatted({ ...location, inventory });
   }
 
   async store(ctx: HttpContext, payload: StoreLocationType) {
@@ -43,7 +43,7 @@ export class LocationsService {
       updated_at: new Date(),
     });
 
-    return response.created({ data: await db.from('locations').where('id', id).first() });
+    return response.status(201).sendFormatted(await db.from('locations').where('id', id).first());
   }
 
   async updateStatus(ctx: HttpContext, payload: UpdateLocationStatusType) {
@@ -56,6 +56,6 @@ export class LocationsService {
 
     EventBus.publish('route_update', { locationId: Number(params.id), ...payload });
 
-    return response.ok({ data: await db.from('locations').where('id', params.id).first() });
+    return response.sendFormatted(await db.from('locations').where('id', params.id).first());
   }
 }

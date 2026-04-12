@@ -12,31 +12,33 @@ export class VehiclesService {
     const query = db.from('vehicles');
     if (type) query.where('type', type);
     if (status) query.where('status', status);
-    return ctx.response.ok({ data: await query });
+    return ctx.response.sendFormatted(await query);
   }
 
   async show(ctx: HttpContext) {
     const vehicle = await db.from('vehicles').where('id', ctx.params.id).firstOrFail();
-    return ctx.response.ok({ data: vehicle });
+    return ctx.response.sendFormatted(vehicle);
   }
 
   async store(ctx: HttpContext, payload: StoreVehicleType) {
     const [id] = await db
       .table('vehicles')
       .insert({ ...payload, status: 'idle', created_at: new Date(), updated_at: new Date() });
-    return ctx.response.created({ data: await db.from('vehicles').where('id', id).first() });
+    return ctx.response
+      .status(201)
+      .sendFormatted(await db.from('vehicles').where('id', id).first());
   }
 
   async update(ctx: HttpContext, payload: UpdateVehicleType) {
     const vehicle = await db.from('vehicles').where('id', ctx.params.id).firstOrFail();
     if (ctx.auth.user!.role !== 'sync_admin' && vehicle.operator_id !== ctx.auth.user!.id) {
-      return ctx.response.forbidden({ error: 'Can only update your own vehicle' });
+      return ctx.response.status(403).sendError('Can only update your own vehicle');
     }
     await db
       .from('vehicles')
       .where('id', ctx.params.id)
       .update({ ...payload, updated_at: new Date() });
     EventBus.publish('vehicle_update', { vehicleId: Number(ctx.params.id), ...payload });
-    return ctx.response.ok({ message: 'Vehicle updated' });
+    return ctx.response.sendFormatted('Vehicle updated');
   }
 }

@@ -22,7 +22,7 @@ export class TriageService {
       .select('td.*', 'm.mission_code')
       .orderBy('td.created_at', 'desc');
 
-    return response.ok({ data });
+    return response.sendFormatted(data);
   }
 
   async slaStatus(ctx: HttpContext) {
@@ -35,7 +35,7 @@ export class TriageService {
       .first();
 
     if (!mission) {
-      return response.notFound({ message: 'Mission not found' });
+      return response.status(404).sendError('Mission not found');
     }
 
     const now = new Date();
@@ -61,7 +61,7 @@ export class TriageService {
       urgencyLevel = 'ok';
     }
 
-    return response.ok({
+    return response.sendFormatted({
       mission_id: mission.id,
       priority_class: mission.priority_class,
       sla_deadline: mission.sla_deadline,
@@ -94,6 +94,6 @@ export class TriageService {
 
     const decision = await db.from('triage_decisions').where('id', decisionId).first();
 
-    return response.created(decision);
+    return response.status(201).sendFormatted(decision);
   }
 }

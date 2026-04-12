@@ -14,12 +14,12 @@ export class UsersService {
     const query = User.query().whereNull('deleted_at').where('status', status);
     if (role) query.where('role', role);
     const users = await query.paginate(page, perPage);
-    return response.ok(users);
+    return response.sendFormatted(users);
   }
 
   async show({ params, response }: HttpContext) {
     const user = await User.query().where('id', params.id).whereNull('deleted_at').firstOrFail();
-    return response.ok(user);
+    return response.sendFormatted(user);
   }
 
   async updateRole({ params, auth, response }: HttpContext, payload: UpdateRoleType) {
@@ -34,12 +34,12 @@ export class UsersService {
       event_hash: '',
       created_at: new Date(),
     });
-    return response.ok({ message: 'Role updated', role: user.role });
+    return response.sendFormatted({ role: user.role }, 'Role updated');
   }
 
   async updateStatus({ params, response }: HttpContext, payload: UpdateStatusType) {
     const user = await User.findOrFail(params.id);
     await user.merge({ status: payload.status as any }).save();
-    return response.ok({ message: 'Status updated', status: user.status });
+    return response.sendFormatted({ status: user.status }, 'Status updated');
   }
 }

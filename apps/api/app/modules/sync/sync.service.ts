@@ -29,9 +29,9 @@ export class SyncService {
 
     const node = await db.from('sync_nodes').where('node_uuid', payload.node_uuid).first();
     if (!node) {
-      return response.notFound({
-        error: 'Node not registered. Call POST /api/sync/nodes/register first.',
-      });
+      return response
+        .status(404)
+        .sendError('Node not registered. Call POST /api/sync/nodes/register first.');
     }
 
     let accepted = 0;
@@ -104,7 +104,7 @@ export class SyncService {
       accepted++;
     }
 
-    return response.ok({ accepted, skipped, conflicts_created: conflictsCreated });
+    return response.sendFormatted({ accepted, skipped, conflicts_created: conflictsCreated });
   }
 
   async pull(ctx: HttpContext) {
@@ -114,14 +114,14 @@ export class SyncService {
     const vcRaw = request.input('vc', '{}');
 
     if (!nodeUuid) {
-      return response.badRequest({ error: 'node_uuid is required' });
+      return response.status(400).sendError('node_uuid is required');
     }
 
     let vectorClock: Record<string, number> = {};
     try {
       vectorClock = JSON.parse(vcRaw);
     } catch {
-      return response.badRequest({ error: 'vc must be valid JSON' });
+      return response.status(400).sendError('vc must be valid JSON');
     }
 
     const isFirstSync = Object.keys(vectorClock).length === 0;
@@ -152,14 +152,14 @@ export class SyncService {
       };
     }
 
-    return response.ok(result);
+    return response.sendFormatted(result);
   }
 
   async conflicts(ctx: HttpContext) {
     const { response } = ctx;
-    return response.ok({
-      data: await db.from('sync_conflicts').whereNull('resolution').orderBy('created_at', 'desc'),
-    });
+    return response.sendFormatted(
+      await db.from('sync_conflicts').whereNull('resolution').orderBy('created_at', 'desc')
+    );
   }
 
   async resolveConflict(ctx: HttpContext, payload: ResolveConflictType) {
@@ -184,16 +184,16 @@ export class SyncService {
         .update({ is_resolved: true });
     }
 
-    return response.ok({ message: 'Conflict resolved' });
+    return response.sendFormatted('Conflict resolved');
   }
 
   async nodes(ctx: HttpContext) {
     const { response } = ctx;
-    return response.ok({
-      data: await db
+    return response.sendFormatted(
+      await db
         .from('sync_nodes')
-        .select('id', 'node_uuid', 'node_type', 'is_relay', 'last_seen_at', 'battery_level'),
-    });
+        .select('id', 'node_uuid', 'node_type', 'is_relay', 'last_seen_at', 'battery_level')
+    );
   }
 
   async registerNode(ctx: HttpContext, payload: RegisterNodeType) {
@@ -205,7 +205,7 @@ export class SyncService {
         .from('sync_nodes')
         .where('node_uuid', payload.node_uuid)
         .update({ last_seen_at: new Date(), updated_at: new Date() });
-      return response.ok({ message: 'Node already registered, last_seen_at updated' });
+      return response.sendFormatted('Node already registered, last_seen_at updated');
     }
 
     const [id] = await db.table('sync_nodes').insert({
@@ -220,6 +220,6 @@ export class SyncService {
       updated_at: new Date(),
     });
 
-    return response.created({ id, node_uuid: payload.node_uuid });
+    return response.status(201).sendFormatted({ id, node_uuid: payload.node_uuid });
   }
 }

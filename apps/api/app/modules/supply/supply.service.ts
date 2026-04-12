@@ -8,14 +8,14 @@ export class SupplyService {
     const priority = ctx.request.input('priority_class');
     const query = db.from('supply_items').orderBy('priority_class');
     if (priority) query.where('priority_class', priority);
-    return ctx.response.ok({ data: await query });
+    return ctx.response.sendFormatted(await query);
   }
 
   async storeItem(ctx: HttpContext, payload: StoreItemType) {
     const [id] = await db
       .table('supply_items')
       .insert({ ...payload, created_at: new Date(), updated_at: new Date() });
-    return ctx.response.created({ data: await db.from('supply_items').where('id', id).first() });
+    return ctx.response.status(201).sendFormatted(await db.from('supply_items').where('id', id).first());
   }
 
   async indexInventory(ctx: HttpContext) {
@@ -35,7 +35,7 @@ export class SupplyService {
       )
       .orderBy('s.priority_class')
       .orderBy('l.node_code');
-    return ctx.response.ok({ data: inventory });
+    return ctx.response.sendFormatted(inventory);
   }
 
   async showInventory(ctx: HttpContext) {
@@ -50,7 +50,7 @@ export class SupplyService {
         'i.crdt_vector_clock',
         'i.last_synced_at'
       );
-    return ctx.response.ok({ data: inventory });
+    return ctx.response.sendFormatted(inventory);
   }
 
   async updateStock(ctx: HttpContext, payload: UpdateStockType) {
@@ -72,7 +72,7 @@ export class SupplyService {
         last_synced_at: new Date(),
         updated_at: new Date(),
       });
-      return ctx.response.created({ message: 'Stock entry created', quantity: payload.quantity });
+      return ctx.response.status(201).sendFormatted({ quantity: payload.quantity }, 'Stock entry created');
     }
 
     await db
@@ -86,6 +86,6 @@ export class SupplyService {
         last_synced_at: new Date(),
         updated_at: new Date(),
       });
-    return ctx.response.ok({ message: 'Stock updated', quantity: payload.quantity });
+    return ctx.response.sendFormatted({ quantity: payload.quantity }, 'Stock updated');
   }
 }

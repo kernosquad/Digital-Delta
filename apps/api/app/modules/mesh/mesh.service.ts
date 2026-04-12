@@ -11,7 +11,7 @@ export class MeshService {
 
     const senderNode = await db.from('sync_nodes').where('user_id', auth.user!.id).first();
     if (!senderNode) {
-      return response.notFound({ error: 'Sender node not registered' });
+      return response.status(404).sendError('Sender node not registered');
     }
 
     const recipientNode = await db
@@ -19,7 +19,7 @@ export class MeshService {
       .where('node_uuid', payload.recipient_node_uuid)
       .first();
     if (!recipientNode) {
-      return response.notFound({ error: 'Recipient node not registered' });
+      return response.status(404).sendError('Recipient node not registered');
     }
 
     const ttlHours = payload.ttl_hours ?? 24;
@@ -42,7 +42,7 @@ export class MeshService {
       expires_at: expiresAt,
     });
 
-    return response.created({ id, message_uuid: messageUuid, expires_at: expiresAt });
+    return response.status(201).sendFormatted({ id, message_uuid: messageUuid, expires_at: expiresAt });
   }
 
   async pending(ctx: HttpContext) {
@@ -50,7 +50,7 @@ export class MeshService {
 
     const node = await db.from('sync_nodes').where('user_id', auth.user!.id).first();
     if (!node) {
-      return response.ok({ data: [] });
+      return response.sendFormatted([]);
     }
 
     const messages = await db
@@ -75,7 +75,7 @@ export class MeshService {
       encrypted_payload: Buffer.from(m.encrypted_payload).toString('base64'),
     }));
 
-    return response.ok({ data: serialized });
+    return response.sendFormatted(serialized);
   }
 
   async acknowledge(ctx: HttpContext) {
@@ -85,7 +85,7 @@ export class MeshService {
     const msg = await db.from('mesh_messages').where('message_uuid', params.uuid).firstOrFail();
 
     if (msg.recipient_node_id !== node?.id) {
-      return response.forbidden({ error: 'Not the intended recipient' });
+      return response.status(403).sendError('Not the intended recipient');
     }
 
     await db
@@ -93,7 +93,7 @@ export class MeshService {
       .where('message_uuid', params.uuid)
       .update({ is_delivered: true, delivered_at: new Date() });
 
-    return response.ok({ message: 'Acknowledged' });
+    return response.sendFormatted('Acknowledged');
   }
 
   async relay(ctx: HttpContext) {
@@ -102,16 +102,16 @@ export class MeshService {
     const msg = await db.from('mesh_messages').where('message_uuid', params.uuid).firstOrFail();
 
     if (msg.hop_count >= msg.max_hops) {
-      return response.unprocessableEntity({ error: 'Max hops reached — message dropped' });
+      return response.status(422).sendError('Max hops reached — message dropped');
     }
 
     if (new Date(msg.expires_at) < new Date()) {
-      return response.unprocessableEntity({ error: 'Message expired' });
+      return response.status(422).sendError('Message expired');
     }
 
     const relayNode = await db.from('sync_nodes').where('user_id', auth.user!.id).first();
     if (!relayNode) {
-      return response.notFound({ error: 'Relay node not registered' });
+      return response.status(404).sendError('Relay node not registered');
     }
 
     await db
@@ -125,6 +125,6 @@ export class MeshService {
       relayed_at: new Date(),
     });
 
-    return response.ok({ hop_count: msg.hop_count + 1 });
+    return response.sendFormatted({ hop_count: msg.hop_count + 1 });
   }
 }

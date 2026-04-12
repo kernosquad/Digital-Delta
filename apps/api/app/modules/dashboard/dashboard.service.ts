@@ -78,7 +78,7 @@ export class DashboardService {
       db.from('triage_decisions').where('created_at', '>', since24h).count('* as count').first(),
     ]);
 
-    return response.ok({
+    return response.sendFormatted({
       missions: {
         total: Number(missionsRow?.total ?? 0),
         active: Number(missionsRow?.active ?? 0),
