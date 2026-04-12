@@ -465,7 +465,7 @@ class _RendezvousTabState extends State<_RendezvousTab> {
               Row(children: [
                 _CheckRow(label: 'Within drone range (${r['total_drone_km']} km)', ok: r['within_drone_range'] == true),
                 SizedBox(width: 16.w),
-                _CheckRow(label: 'Payload feasible', ok: r['payload_feasible'] == true),
+                _CheckRow(label: 'Cargo fits drone', ok: r['payload_feasible'] == true),
               ]),
             ],
           ),

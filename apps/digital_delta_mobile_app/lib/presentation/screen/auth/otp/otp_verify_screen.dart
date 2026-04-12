@@ -62,7 +62,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('Verify OTP'), centerTitle: true),
+      appBar: AppBar(title: const Text('Verify Security Code'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(24.w),
@@ -97,7 +97,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                       ),
                       SizedBox(height: 16.h),
                       Text(
-                        'Two-Factor Authentication',
+                        'Security Verification',
                         style: TextStyle(
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w600,

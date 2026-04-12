@@ -208,7 +208,7 @@ class _MeshChatScreenState extends ConsumerState<MeshChatScreen> {
                   Text(
                     chatState.peerName.isNotEmpty
                         ? chatState.peerName
-                        : (widget.initialPeerName ?? 'Mesh Node'),
+                        : (widget.initialPeerName ?? 'Nearby Device'),
                     style: TextStyle(
                       fontSize: 15.sp,
                       fontWeight: FontWeight.w700,
@@ -228,7 +228,7 @@ class _MeshChatScreenState extends ConsumerState<MeshChatScreen> {
                       ),
                       SizedBox(width: 4.w),
                       Text(
-                        isConnected ? 'BLE Connected' : 'Not Connected',
+                        isConnected ? 'Nearby Connected' : 'Not Connected',
                         style: TextStyle(
                           fontSize: 11.sp,
                           color: isConnected ? Colors.green : Colors.grey,
@@ -300,7 +300,7 @@ class _MeshChatScreenState extends ConsumerState<MeshChatScreen> {
                   SizedBox(width: 6.w),
                   Expanded(
                     child: Text(
-                      'Not BLE connected — messages stored for delivery when peer reconnects (store-and-forward M3.1)',
+                      'Device not nearby — messages are saved and will be delivered when they reconnect.',
                       style: TextStyle(
                         fontSize: 11.sp,
                         color: Colors.orange.shade800,
@@ -333,7 +333,7 @@ class _MeshChatScreenState extends ConsumerState<MeshChatScreen> {
                         ),
                         SizedBox(height: 4.h),
                         Text(
-                          'Messages are E2E encrypted and relayed\nvia BLE mesh (Module 3)',
+                          'Messages are private and sent\nthrough nearby devices',
                           style: TextStyle(
                             fontSize: 11.sp,
                             color: Colors.grey.shade400,

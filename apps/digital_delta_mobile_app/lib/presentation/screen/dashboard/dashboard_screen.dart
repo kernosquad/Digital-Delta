@@ -111,7 +111,7 @@ class _InventoryTab extends StatelessWidget {
           _ActionRow(children: [
             _ActionBtn(icon: Icons.add_box_outlined,   label: 'Add Item',    color: Colors.teal,
                 onTap: () => _showAddDialog(context, notifier)),
-            _ActionBtn(icon: Icons.edit_outlined,      label: 'Delta',       color: Colors.blue,
+            _ActionBtn(icon: Icons.edit_outlined,      label: 'Update',      color: Colors.blue,
                 onTap: snapshot.inventory.isEmpty ? null : notifier.createLocalDelta),
             _ActionBtn(icon: Icons.sync,               label: 'Peer Sync',   color: Colors.deepPurple,
                 onTap: notifier.simulatePeerSync),
@@ -121,8 +121,8 @@ class _InventoryTab extends StatelessWidget {
           SizedBox(height: 16.h),
 
           // ── Section header ─────────────────────────────────────────────
-          _SectionHeader(title: 'CRDT Inventory Ledger',
-              subtitle: 'LWW-Register per field · ${snapshot.inventory.length} items'),
+          _SectionHeader(title: 'Supply Inventory',
+              subtitle: 'Auto-synced · ${snapshot.inventory.length} items'),
           SizedBox(height: 8.h),
 
           if (snapshot.inventory.isEmpty)
@@ -140,8 +140,8 @@ class _InventoryTab extends StatelessWidget {
           SizedBox(height: 16.h),
 
           // ── Operations log ─────────────────────────────────────────────
-          _SectionHeader(title: 'CRDT Operations Log',
-              subtitle: 'M2.2 causal order · last ${snapshot.operations.length}'),
+          _SectionHeader(title: 'Activity Log',
+              subtitle: 'Recent updates · last ${snapshot.operations.length}'),
           SizedBox(height: 8.h),
 
           if (snapshot.operations.isEmpty)
@@ -202,7 +202,7 @@ class _InventoryTab extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(child: TextField(controller: slaCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'SLA (hrs)'))),
+                    decoration: const InputDecoration(labelText: 'Deadline (hrs)'))),
               ]),
             ]),
           ),
@@ -255,19 +255,19 @@ class _ClocksTab extends StatelessWidget {
         _InfoCard(
           icon: Icons.account_tree_outlined,
           color: Colors.indigo,
-          title: 'M2.2 · Causal Ordering',
-          body: 'Every mutation carries a vector clock. '
-              'Two concurrent edits (neither dominates) are detected as conflicts. '
-              'Causal history is preserved across disconnected devices.',
+          title: 'Update History',
+          body: 'Every change is tracked across all devices. '
+              'When two devices edit the same item at the same time, a conflict is flagged. '
+              'The full change history is preserved even when devices are offline.',
         ),
         SizedBox(height: 14.h),
 
         // ── Merged vector clock ────────────────────────────────────────
-        _SectionHeader(title: 'Merged Vector Clock', subtitle: '${vc.length} node(s)'),
+        _SectionHeader(title: 'Device Sync Timeline', subtitle: '${vc.length} device(s)'),
         SizedBox(height: 8.h),
         if (vc.isEmpty)
-          _EmptyCard(icon: Icons.schedule, title: 'No operations yet',
-              subtitle: 'Create deltas to populate the vector clock')
+          _EmptyCard(icon: Icons.schedule, title: 'No activity yet',
+              subtitle: 'Make updates to see the sync timeline')
         else
           Container(
             padding: EdgeInsets.all(14.w),
@@ -314,7 +314,7 @@ class _ClocksTab extends StatelessWidget {
         SizedBox(height: 16.h),
 
         // ── Per-operation breakdown ────────────────────────────────────
-        _SectionHeader(title: 'Operation Causal History', subtitle: '${ops.length} ops'),
+        _SectionHeader(title: 'Change History', subtitle: '${ops.length} updates'),
         SizedBox(height: 8.h),
         if (ops.isEmpty)
           Text('No operations logged yet.',
@@ -378,9 +378,9 @@ class _ConflictsTab extends ConsumerWidget {
         _InfoCard(
           icon: Icons.merge_type,
           color: Colors.red,
-          title: 'M2.3 · Conflict Detection & Resolution',
-          body: 'When two devices edit the same field concurrently (neither VC dominates), '
-              'a conflict is surfaced here. Choose A-wins, B-wins, or Merge (max).',
+          title: 'Conflict Resolution',
+          body: 'When two devices edit the same item at the same time, '
+              'a conflict appears here. Choose which version to keep, or merge both.',
         ),
         SizedBox(height: 14.h),
 
@@ -664,7 +664,7 @@ class _InventoryCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis)),
           Icon(Icons.schedule, size: 12.sp, color: AppColors.secondaryTextDefault),
           SizedBox(width: 3.w),
-          Text('SLA ${item.slaHours}h',
+          Text('Deadline ${item.slaHours}h',
               style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault)),
         ]),
         SizedBox(height: 4.h),

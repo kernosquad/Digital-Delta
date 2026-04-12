@@ -290,7 +290,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: _ProfileMenuItem(
                             icon: Icons.medical_services_outlined,
                             title: 'Triage Control',
-                            subtitle: 'Manage P0–P3 SLA priority decisions',
+                            subtitle: 'Manage delivery priority decisions',
                             onTap: () {},
                           ),
                         ),
@@ -319,7 +319,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         SizedBox(height: 12.h),
                         _ProfileMenuItem(
                           icon: Icons.merge_type_outlined,
-                          title: 'CRDT Conflicts',
+                          title: 'Data Conflicts',
                           subtitle: 'Resolve pending vector-clock conflicts',
                           onTap: () {},
                         ),

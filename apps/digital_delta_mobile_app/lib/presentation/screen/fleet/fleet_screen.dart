@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../notifier/app_data_notifier.dart';
 import '../../theme/color.dart';
 
-class FleetScreen extends StatefulWidget {
+// ---------------------------------------------------------------------------
+// Fleet Screen — live vehicle data from AppDataService (offline-first)
+// ---------------------------------------------------------------------------
+
+class FleetScreen extends ConsumerWidget {
   const FleetScreen({super.key});
 
   @override
-  State<FleetScreen> createState() => _FleetScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dataState = ref.watch(appDataNotifierProvider);
 
-class _FleetScreenState extends State<FleetScreen> {
-  String _selectedFilter = 'All';
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.colorBackground,
       appBar: AppBar(
@@ -22,131 +23,379 @@ class _FleetScreenState extends State<FleetScreen> {
           'Fleet Management',
           style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
         ),
-      ),
-      body: Column(
-        children: [
-          // Filter Section
-          Container(
-            padding: EdgeInsets.all(16.w),
-            color: Colors.white,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _FilterChip(
-                    label: 'All',
-                    isSelected: _selectedFilter == 'All',
-                    onTap: () => setState(() => _selectedFilter = 'All'),
-                  ),
-                  SizedBox(width: 8.w),
-                  _FilterChip(
-                    label: 'Trucks',
-                    isSelected: _selectedFilter == 'Trucks',
-                    onTap: () => setState(() => _selectedFilter = 'Trucks'),
-                  ),
-                  SizedBox(width: 8.w),
-                  _FilterChip(
-                    label: 'Boats',
-                    isSelected: _selectedFilter == 'Boats',
-                    onTap: () => setState(() => _selectedFilter = 'Boats'),
-                  ),
-                  SizedBox(width: 8.w),
-                  _FilterChip(
-                    label: 'Drones',
-                    isSelected: _selectedFilter == 'Drones',
-                    onTap: () => setState(() => _selectedFilter = 'Drones'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Vehicles List
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.all(16.w),
-              children: [
-                _VehicleCard(
-                  vehicleId: 'TRK-001',
-                  type: 'Truck',
-                  icon: Icons.local_shipping,
-                  driver: 'Karim Ahmed',
-                  status: 'Active',
-                  currentLoad: 'Medical Supplies (P0)',
-                  location: 'En route to Sylhet Hospital',
-                  battery: 85,
-                  eta: '15 min',
-                  statusColor: Colors.green,
-                ),
-                SizedBox(height: 12.h),
-                _VehicleCard(
-                  vehicleId: 'BOAT-012',
-                  type: 'Speedboat',
-                  icon: Icons.directions_boat,
-                  driver: 'Rahim Mia',
-                  status: 'Active',
-                  currentLoad: 'Food Packages (P1)',
-                  location: 'Waterway Route 4',
-                  battery: 62,
-                  eta: '28 min',
-                  statusColor: Colors.green,
-                ),
-                SizedBox(height: 12.h),
-                _VehicleCard(
-                  vehicleId: 'DRN-005',
-                  type: 'Drone',
-                  icon: Icons.airplanemode_active,
-                  driver: 'Auto-Pilot',
-                  status: 'Charging',
-                  currentLoad: 'None',
-                  location: 'Base Station Alpha',
-                  battery: 34,
-                  eta: '—',
-                  statusColor: Colors.orange,
-                ),
-                SizedBox(height: 12.h),
-                _VehicleCard(
-                  vehicleId: 'TRK-008',
-                  type: 'Truck',
-                  icon: Icons.local_shipping,
-                  driver: 'Nasir Uddin',
-                  status: 'Idle',
-                  currentLoad: 'None',
-                  location: 'Netrokona Depot',
-                  battery: 100,
-                  eta: '—',
-                  statusColor: Colors.grey,
-                ),
-                SizedBox(height: 12.h),
-                _VehicleCard(
-                  vehicleId: 'BOAT-007',
-                  type: 'Speedboat',
-                  icon: Icons.directions_boat,
-                  driver: 'Jamal Hossain',
-                  status: 'Active',
-                  currentLoad: 'Water Purification (P0)',
-                  location: 'Canal Junction 12',
-                  battery: 71,
-                  eta: '9 min',
-                  statusColor: Colors.green,
-                ),
-              ],
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_outlined),
+            onPressed: dataState.isLoading
+                ? null
+                : () => ref.read(appDataNotifierProvider.notifier).refresh(),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fleet_add_vehicle',
-        onPressed: () {},
-        backgroundColor: AppColors.primarySurfaceDefault,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: Text(
-          'Add Vehicle',
-          style: TextStyle(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+      body: dataState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _ErrorView(
+          message: e.toString(),
+          onRetry: () => ref.read(appDataNotifierProvider.notifier).refresh(),
+        ),
+        data: (snap) => _FleetBody(vehicles: snap.vehicles),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Body with filter + list
+// ---------------------------------------------------------------------------
+
+class _FleetBody extends StatefulWidget {
+  final List<Map<String, dynamic>> vehicles;
+  const _FleetBody({required this.vehicles});
+
+  @override
+  State<_FleetBody> createState() => _FleetBodyState();
+}
+
+class _FleetBodyState extends State<_FleetBody> {
+  String _filter = 'All';
+
+  List<Map<String, dynamic>> get _filtered {
+    if (_filter == 'All') return widget.vehicles;
+    final typeMap = {
+      'Trucks': 'truck',
+      'Boats': 'speedboat',
+      'Drones': 'drone',
+    };
+    final typeKey = typeMap[_filter];
+    return widget.vehicles.where((v) => v['type'] == typeKey).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+
+    return Column(
+      children: [
+        // Summary chips
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+          color: Colors.white,
+          child: Row(
+            children: [
+              _SummaryChip(
+                label: 'Total',
+                count: widget.vehicles.length,
+                color: Colors.blueGrey,
+              ),
+              SizedBox(width: 8.w),
+              _SummaryChip(
+                label: 'Active',
+                count: widget.vehicles
+                    .where((v) => v['status'] == 'in_mission')
+                    .length,
+                color: Colors.green,
+              ),
+              SizedBox(width: 8.w),
+              _SummaryChip(
+                label: 'Idle',
+                count: widget.vehicles
+                    .where((v) => v['status'] == 'idle')
+                    .length,
+                color: Colors.blueGrey,
+              ),
+              SizedBox(width: 8.w),
+              _SummaryChip(
+                label: 'Offline',
+                count: widget.vehicles
+                    .where((v) => v['status'] == 'offline')
+                    .length,
+                color: Colors.red,
+              ),
+            ],
           ),
+        ),
+
+        // Filter row
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+          color: Colors.white,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['All', 'Trucks', 'Boats', 'Drones']
+                  .map(
+                    (f) => Padding(
+                      padding: EdgeInsets.only(right: 8.w),
+                      child: _FilterChip(
+                        label: f,
+                        isSelected: _filter == f,
+                        onTap: () => setState(() => _filter = f),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+
+        // Vehicles list
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.local_shipping_outlined,
+                          size: 48.sp, color: Colors.grey.shade300),
+                      SizedBox(height: 12.h),
+                      Text(
+                        'No $_filter vehicles',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          color: AppColors.secondaryTextDefault,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.all(16.w),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                  itemBuilder: (_, i) => _VehicleCard(vehicle: filtered[i]),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Vehicle card
+// ---------------------------------------------------------------------------
+
+class _VehicleCard extends StatelessWidget {
+  final Map<String, dynamic> vehicle;
+  const _VehicleCard({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final type = vehicle['type'] as String? ?? 'truck';
+    final status = vehicle['status'] as String? ?? 'idle';
+    final identifier = vehicle['identifier'] as String? ?? '—';
+    final name = vehicle['name'] as String? ?? identifier;
+    final fuel = vehicle['fuel_level'] as num?;
+    final battery = vehicle['battery_level'] as num?;
+    final level = battery ?? fuel;
+    final levelLabel = battery != null ? 'Battery' : 'Fuel';
+    final operatorName =
+        (vehicle['operator'] as Map?)?['name'] as String? ?? 'Not assigned';
+    final locationName =
+        (vehicle['location'] as Map?)?['name'] as String? ?? '—';
+
+    final statusColor = _statusColor(status);
+    final typeIcon = _typeIcon(type);
+
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(typeIcon, size: 28.sp, color: statusColor),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          identifier,
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        _StatusBadge(status: status, color: statusColor),
+                      ],
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: AppColors.secondaryTextDefault,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Divider(height: 1, color: Colors.grey.shade200),
+          SizedBox(height: 12.h),
+          _InfoRow(
+            icon: Icons.person_outline,
+            label: 'Driver',
+            value: operatorName,
+          ),
+          SizedBox(height: 8.h),
+          _InfoRow(
+            icon: Icons.location_on_outlined,
+            label: 'Location',
+            value: locationName,
+          ),
+          if (level != null) ...[
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Icon(
+                  battery != null
+                      ? Icons.battery_charging_full
+                      : Icons.local_gas_station,
+                  size: 16.sp,
+                  color: level > 60
+                      ? Colors.green
+                      : level > 30
+                          ? Colors.orange
+                          : Colors.red,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  levelLabel,
+                  style: TextStyle(
+                      fontSize: 12.sp, color: AppColors.secondaryTextDefault),
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: level.toDouble() / 100,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      level > 60
+                          ? Colors.green
+                          : level > 30
+                              ? Colors.orange
+                              : Colors.red,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  '${level.toInt()}%',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) => switch (status) {
+        'in_mission' => Colors.green,
+        'idle' => Colors.blueGrey,
+        'maintenance' => Colors.orange,
+        'offline' => Colors.red,
+        _ => Colors.grey,
+      };
+
+  IconData _typeIcon(String type) => switch (type) {
+        'truck' => Icons.local_shipping,
+        'speedboat' => Icons.directions_boat,
+        'drone' => Icons.airplanemode_active,
+        _ => Icons.commute,
+      };
+}
+
+// ---------------------------------------------------------------------------
+// Reusable small widgets
+// ---------------------------------------------------------------------------
+
+class _SummaryChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _SummaryChip(
+      {required this.label, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8.r),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12.sp, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  final Color color;
+  const _StatusBadge({required this.status, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = status.replaceAll('_', ' ').toUpperCase();
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6.r),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.sp,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );
@@ -189,194 +438,6 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _VehicleCard extends StatelessWidget {
-  final String vehicleId;
-  final String type;
-  final IconData icon;
-  final String driver;
-  final String status;
-  final String currentLoad;
-  final String location;
-  final int battery;
-  final String eta;
-  final Color statusColor;
-
-  const _VehicleCard({
-    required this.vehicleId,
-    required this.type,
-    required this.icon,
-    required this.driver,
-    required this.status,
-    required this.currentLoad,
-    required this.location,
-    required this.battery,
-    required this.eta,
-    required this.statusColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: Icon(icon, size: 28.sp, color: statusColor),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          vehicleId,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTextDefault,
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 4.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6.r),
-                          ),
-                          child: Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.w600,
-                              color: statusColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      type,
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        color: AppColors.secondaryTextDefault,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (eta != '—')
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 10.w,
-                    vertical: 6.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        eta,
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      Text(
-                        'ETA',
-                        style: TextStyle(fontSize: 10.sp, color: Colors.blue),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          Divider(height: 1, color: Colors.grey.shade200),
-          SizedBox(height: 12.h),
-          _InfoRow(icon: Icons.person_outline, label: 'Driver', value: driver),
-          SizedBox(height: 8.h),
-          _InfoRow(
-            icon: Icons.inventory_2_outlined,
-            label: 'Load',
-            value: currentLoad,
-          ),
-          SizedBox(height: 8.h),
-          _InfoRow(
-            icon: Icons.location_on_outlined,
-            label: 'Location',
-            value: location,
-          ),
-          SizedBox(height: 12.h),
-          Row(
-            children: [
-              Icon(
-                Icons.battery_charging_full,
-                size: 16.sp,
-                color: battery > 60
-                    ? Colors.green
-                    : battery > 30
-                    ? Colors.orange
-                    : Colors.red,
-              ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: LinearProgressIndicator(
-                  value: battery / 100,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    battery > 60
-                        ? Colors.green
-                        : battery > 30
-                        ? Colors.orange
-                        : Colors.red,
-                  ),
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Text(
-                '$battery%',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryTextDefault,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -414,6 +475,55 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.local_shipping_outlined,
+                size: 48.sp, color: Colors.grey.shade300),
+            SizedBox(height: 16.h),
+            Text(
+              'Failed to load vehicles',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryTextDefault,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13.sp, color: AppColors.secondaryTextDefault),
+            ),
+            SizedBox(height: 24.h),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primarySurfaceDefault,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

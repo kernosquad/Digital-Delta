@@ -62,9 +62,9 @@ class MeshScanScreen extends ConsumerWidget {
             unselectedLabelColor: Colors.white38,
             labelStyle: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
             tabs: const [
-              Tab(text: 'Topology'),
-              Tab(text: 'Relay Queue'),
-              Tab(text: 'Encryption'),
+              Tab(text: 'Devices'),
+              Tab(text: 'Messages'),
+              Tab(text: 'Security'),
             ],
           ),
         ),
@@ -122,21 +122,21 @@ class _TopologyTab extends StatelessWidget {
 
         // ── Quick stats ────────────────────────────────────────────────
         Row(children: [
-          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Peers',   color: Colors.teal),
+          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Devices',   color: Colors.teal),
           SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Relays',  color: Colors.deepPurple),
+          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Helpers',  color: Colors.deepPurple),
           SizedBox(width: 8.w),
           _MeshStat(icon: Icons.mail_outline,    value: '${summary.queuedMessages}', label: 'Queued',  color: Colors.pink),
           SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.warning_outline, value: '${summary.openConflicts}',  label: 'Conflicts', color: Colors.orange),
+          _MeshStat(icon: Icons.warning_amber_outlined, value: '${summary.openConflicts}',  label: 'Conflicts', color: Colors.orange),
         ]),
         SizedBox(height: 14.h),
 
         // ── Demo action row ────────────────────────────────────────────
         _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.group_add_outlined,  label: 'Add Peers',    color: Colors.teal,        onTap: notifier.injectDemoPeers),
-          _DemoBtn(icon: Icons.send_outlined,       label: 'Queue Msg',    color: Colors.blue,        onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,             label: 'Relay Hop',    color: Colors.deepPurple,  onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.group_add_outlined,  label: 'Add Devices',  color: Colors.teal,        onTap: notifier.injectDemoPeers),
+          _DemoBtn(icon: Icons.send_outlined,       label: 'Send Msg',     color: Colors.blue,        onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,             label: 'Forward',      color: Colors.deepPurple,  onTap: notifier.relayNextMessage),
           _DemoBtn(icon: Icons.sync,                label: 'Refresh',      color: Colors.grey,        onTap: notifier.refresh),
         ]),
         SizedBox(height: 16.h),
@@ -146,7 +146,7 @@ class _TopologyTab extends StatelessWidget {
         SizedBox(height: 12.h),
 
         // ── Remote peers ───────────────────────────────────────────────
-        _SectionHeader(title: 'Mesh Peers', subtitle: '${peers.length} known'),
+        _SectionHeader(title: 'Nearby Devices', subtitle: '${peers.length} found'),
         SizedBox(height: 8.h),
         if (peers.isEmpty)
           _EmptyMesh(onInject: notifier.injectDemoPeers)
@@ -193,22 +193,22 @@ class _RelayQueueTab extends StatelessWidget {
         _InfoCard(
           icon: Icons.swap_horiz,
           color: Colors.blue,
-          title: 'M3.1 · Store-and-Forward Relay',
-          body: 'Messages survive intermediate node failures. Each message has a TTL (24 h), '
-              'max 3–10 hops, and is deduplicated by UUID. Tap "Queue Msg" then "Relay Hop" to demo.',
+          title: 'Save & Forward Messages',
+          body: 'Messages are saved and delivered even if some devices go offline along the way. '
+              'Each message stays active for 24 hours and is forwarded across up to 10 devices. Tap "Send Msg" then "Forward" to try it.',
         ),
         SizedBox(height: 14.h),
 
         // Action row
         _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.send_outlined,  label: 'Queue Msg',  color: Colors.blue,       onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,        label: 'Relay Hop',  color: Colors.deepPurple, onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.send_outlined,  label: 'Send Msg',   color: Colors.blue,       onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,        label: 'Forward',    color: Colors.deepPurple, onTap: notifier.relayNextMessage),
           _DemoBtn(icon: Icons.sync,           label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
         ]),
         SizedBox(height: 16.h),
 
         // Pending messages
-        _SectionHeader(title: 'Pending Queue', subtitle: '${pending.length} msgs'),
+        _SectionHeader(title: 'Waiting to Send', subtitle: '${pending.length} messages'),
         SizedBox(height: 8.h),
         if (pending.isEmpty)
           _EmptyQueueCard()
@@ -220,7 +220,7 @@ class _RelayQueueTab extends StatelessWidget {
 
         if (delivered.isNotEmpty) ...[
           SizedBox(height: 16.h),
-          _SectionHeader(title: 'Delivered', subtitle: '${delivered.length} msgs'),
+          _SectionHeader(title: 'Delivered', subtitle: '${delivered.length} messages'),
           SizedBox(height: 8.h),
           ...delivered.take(4).map((m) => Padding(
             padding: EdgeInsets.only(bottom: 6.h),
@@ -251,20 +251,20 @@ class _EncryptionTab extends StatelessWidget {
         _InfoCard(
           icon: Icons.lock_outlined,
           color: Colors.green,
-          title: 'M3.3 · End-to-End Encryption',
-          body: 'All payloads are encrypted with the recipient\'s Ed25519 public key. '
-              'Relay nodes (B, C) forward the ciphertext without being able to read it. '
-              'Only the intended recipient can decrypt using their private key.',
+          title: 'Private Messaging',
+          body: 'All messages are scrambled so only the intended recipient can read them. '
+              'Other devices that pass the message along cannot see its contents. '
+              'Only the person you are sending to can unlock and read the message.',
         ),
         SizedBox(height: 14.h),
 
         // Encryption proof: node key table
-        _SectionHeader(title: 'Node Key Registry', subtitle: '${snapshot.nodes.length} keys'),
+        _SectionHeader(title: 'Device Security Keys', subtitle: '${snapshot.nodes.length} devices'),
         SizedBox(height: 8.h),
         if (snapshot.nodes.isEmpty)
           _InfoCard(icon: Icons.key_off, color: Colors.grey,
-              title: 'No keys yet',
-              body: 'Inject demo peers to populate the key registry')
+              title: 'No devices yet',
+              body: 'Add demo devices to see their security keys here')
         else
           ...snapshot.nodes.map((n) => Padding(
             padding: EdgeInsets.only(bottom: 6.h),
@@ -274,12 +274,12 @@ class _EncryptionTab extends StatelessWidget {
         SizedBox(height: 16.h),
 
         // Encrypted payload inspector
-        _SectionHeader(title: 'Payload Inspector', subtitle: '${msgs.length} messages'),
+        _SectionHeader(title: 'Message Details', subtitle: '${msgs.length} messages'),
         SizedBox(height: 8.h),
         if (msgs.isEmpty)
           _InfoCard(icon: Icons.mail_lock_outlined, color: Colors.grey,
               title: 'No messages yet',
-              body: 'Queue a message to see the encrypted payload here')
+              body: 'Send a message to see its details here')
         else
           ...msgs.take(4).map((m) => Padding(
             padding: EdgeInsets.only(bottom: 8.h),
@@ -297,7 +297,7 @@ class _EncryptionTab extends StatelessWidget {
             border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Cryptographic Standards (C5)',
+            Text('Security Standards',
                 style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.green)),
             SizedBox(height: 8.h),
             ...[
@@ -391,7 +391,7 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
               child: Row(children: [
                 Icon(Icons.battery_charging_full, size: 15.sp, color: _factorColor(factor)),
                 SizedBox(width: 8.w),
-                Text('M8.4 · BLE Throttle',
+                Text('Battery Saving Mode',
                     style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white)),
                 const Spacer(),
                 Container(
@@ -899,7 +899,7 @@ class _PayloadInspectorState extends State<_PayloadInspector> {
         Row(children: [
           Icon(Icons.lock, size: 14.sp, color: Colors.green),
           SizedBox(width: 6.w),
-          Text('Payload — ${widget.msg.messageType}',
+          Text('Message — ${widget.msg.messageType}',
               style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.green)),
           const Spacer(),
           GestureDetector(
@@ -983,7 +983,7 @@ class _EmptyMesh extends StatelessWidget {
       SizedBox(height: 10.h),
       Text('No peers detected', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.white54)),
       SizedBox(height: 6.h),
-      Text('No real BLE devices nearby. Tap "Add Peers" to inject demo nodes.',
+      Text('No nearby devices found. Tap "Add Devices" to add demo devices.',
           style: TextStyle(fontSize: 11.sp, color: Colors.white38), textAlign: TextAlign.center),
       SizedBox(height: 14.h),
       ElevatedButton.icon(

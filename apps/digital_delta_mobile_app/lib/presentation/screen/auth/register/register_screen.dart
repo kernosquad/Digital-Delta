@@ -183,7 +183,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     DropdownMenuItem(
                       value: 'sync_admin',
-                      child: Text('Sync Admin'),
+                      child: Text('Data Sync Manager'),
                     ),
                   ],
                   validator: FormBuilderValidators.required(),

@@ -92,7 +92,7 @@ class _OtpSetupScreenState extends ConsumerState<OtpSetupScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('OTP Setup'), centerTitle: true),
+      appBar: AppBar(title: const Text('Security Code Setup'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(24.w),
@@ -103,9 +103,9 @@ class _OtpSetupScreenState extends ConsumerState<OtpSetupScreen> {
               children: [
                 SizedBox(height: 20.h),
                 const AuthHeader(
-                  title: 'Two-Factor Authentication',
+                  title: 'Extra Security Verification',
                   subtitle:
-                      'Set up OTP to add an extra layer of security to your account',
+                      'Set up a verification code to keep your account secure, even without internet.',
                 ),
                 SizedBox(height: 40.h),
                 if (_deviceId != null) ...[
@@ -201,7 +201,7 @@ class _OtpSetupScreenState extends ConsumerState<OtpSetupScreen> {
                   SizedBox(height: 32.h),
                 ],
                 CustomButton(
-                  label: 'Generate OTP Secret',
+                  label: 'Set Up Security Code',
                   onPressed: _handleSetupOtp,
                   isLoading: isLoading,
                 ),

@@ -43,28 +43,28 @@ class _CargoScreenState extends State<CargoScreen> {
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
-                    label: 'P0 Critical',
+                    label: 'Critical',
                     color: Colors.red,
                     isSelected: _selectedPriority == 'P0',
                     onTap: () => setState(() => _selectedPriority = 'P0'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
-                    label: 'P1 High',
+                    label: 'High',
                     color: Colors.orange,
                     isSelected: _selectedPriority == 'P1',
                     onTap: () => setState(() => _selectedPriority = 'P1'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
-                    label: 'P2 Standard',
+                    label: 'Standard',
                     color: Colors.blue,
                     isSelected: _selectedPriority == 'P2',
                     onTap: () => setState(() => _selectedPriority = 'P2'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
-                    label: 'P3 Low',
+                    label: 'Low',
                     color: Colors.grey,
                     isSelected: _selectedPriority == 'P3',
                     onTap: () => setState(() => _selectedPriority = 'P3'),
@@ -333,7 +333,7 @@ class _CargoCard extends StatelessWidget {
                         Icon(Icons.warning, size: 14.sp, color: Colors.white),
                         SizedBox(width: 4.w),
                         Text(
-                          'SLA Risk',
+                          'Deadline Risk',
                           style: TextStyle(
                             fontSize: 11.sp,
                             fontWeight: FontWeight.w600,
@@ -398,7 +398,7 @@ class _CargoCard extends StatelessWidget {
                 SizedBox(height: 12.h),
                 _InfoRow(
                   icon: Icons.access_time,
-                  label: 'SLA Window',
+                  label: 'Delivery Deadline',
                   value: slaWindow,
                 ),
                 SizedBox(height: 8.h),

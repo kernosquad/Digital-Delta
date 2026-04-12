@@ -121,7 +121,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Key Provisioning'),
+        title: const Text('Device Security Setup'),
         centerTitle: true,
         elevation: 0,
         automaticallyImplyLeading: !isLoading && !_completed,
@@ -161,7 +161,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
               Text(
                 _completed
                     ? 'Device Fully Provisioned!'
-                    : 'Encryption Key Setup',
+                    : 'Security Key Setup',
                 style: TextStyle(
                   fontSize: 24.sp,
                   fontWeight: FontWeight.bold,
@@ -176,7 +176,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
               Text(
                 _completed
                     ? 'Your device is ready for offline operation'
-                    : 'Generate cryptographic keys for secure\nmesh communication and data sync',
+                    : 'Create security keys to enable secure\noffline communication and data sync',
                 style: TextStyle(
                   fontSize: 14.sp,
                   color: AppColors.secondaryTextDefault,
@@ -329,13 +329,13 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                         '• Private key stored in secure enclave (never leaves device)',
                       ),
                       _buildSecurityNote(
-                        '• Public key registered with server for mesh E2E encryption',
+                        '• Public key registered with server for secure private messaging',
                       ),
                       _buildSecurityNote(
-                        '• Used for Proof-of-Delivery signatures (M5.1)',
+                        '• Used to verify delivery confirmations',
                       ),
                       _buildSecurityNote(
-                        '• Ed25519 provides 128-bit security with fast signatures',
+                        '• Industry-standard security with fast verification',
                       ),
                     ],
                   ),
@@ -349,10 +349,10 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                   width: double.infinity,
                   child: CustomButton(
                     label: _isGenerating
-                        ? 'Generating Key Pair...'
+                        ? 'Creating Security Keys...'
                         : _isProvisioning
-                        ? 'Provisioning to Server...'
-                        : 'Generate & Provision Key',
+                        ? 'Registering with Server...'
+                        : 'Set Up Security Keys',
                     onPressed: isLoading ? null : _generateAndProvisionKey,
                   ),
                 ),
@@ -369,7 +369,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                 ),
                 SizedBox(height: 16.h),
                 Text(
-                  '✅ Device setup complete - all Module 1 requirements met',
+                  '✅ Device setup complete — ready for offline use',
                   style: TextStyle(
                     fontSize: 12.sp,
                     color: Colors.green.shade700,
@@ -390,16 +390,16 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
       children: [
         _buildProgressStep(
           number: 1,
-          title: 'Generate Key Pair',
-          description: 'Create Ed25519 public/private keys',
+          title: 'Create Security Keys',
+          description: 'Generate your public and private keys',
           isCompleted: _publicKey != null,
           isActive: _isGenerating,
         ),
         _buildProgressConnector(_publicKey != null),
         _buildProgressStep(
           number: 2,
-          title: 'Provision to Server',
-          description: 'Register public key in shared ledger',
+          title: 'Register with Server',
+          description: 'Share your public key with the server',
           isCompleted: _completed,
           isActive: _isProvisioning,
         ),

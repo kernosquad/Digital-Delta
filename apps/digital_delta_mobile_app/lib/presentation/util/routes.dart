@@ -10,6 +10,7 @@ import '../screen/auth/otp/otp_verify_screen.dart';
 import '../screen/auth/register/register_screen.dart';
 import '../screen/home/home_screen.dart';
 import '../screen/main/main_screen.dart';
+import '../screen/map/map_screen.dart';
 import '../screen/mesh/mesh_chat_screen.dart';
 import '../screen/mesh/mesh_network_screen.dart';
 import '../screen/mesh/mesh_scan_screen.dart';
@@ -41,6 +42,7 @@ class Routes {
   static const String podScanner = '/pod-scanner';
   static const String routing = '/routing';
   static const String droneDispatch = '/drone-dispatch';
+  static const String map = '/map';
 
   static Route<dynamic> generateRoutes(RouteSettings settings) {
     switch (settings.name) {
@@ -104,6 +106,8 @@ class Routes {
         return MaterialPageRoute(builder: (_) => const RoutingScreen());
       case droneDispatch:
         return MaterialPageRoute(builder: (_) => const DroneDispatchScreen());
+      case map:
+        return MaterialPageRoute(builder: (_) => const MapScreen());
       default:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
     }

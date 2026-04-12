@@ -69,7 +69,7 @@ class _KeyProvisionScreenState extends ConsumerState<KeyProvisionScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('Key Provisioning'), centerTitle: true),
+      appBar: AppBar(title: const Text('Device Security Setup'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(24.w),
@@ -80,9 +80,9 @@ class _KeyProvisionScreenState extends ConsumerState<KeyProvisionScreen> {
               children: [
                 SizedBox(height: 20.h),
                 const AuthHeader(
-                  title: 'Provision Encryption Key',
+                  title: 'Set Up Your Security Key',
                   subtitle:
-                      'Register a public key for secure device communication',
+                      'Register a key to enable secure device communication',
                 ),
                 SizedBox(height: 40.h),
                 Container(
@@ -102,7 +102,7 @@ class _KeyProvisionScreenState extends ConsumerState<KeyProvisionScreen> {
                       SizedBox(width: 16.w),
                       Expanded(
                         child: Text(
-                          'Encryption keys enable secure offline-first communication and data sync.',
+                          'Security keys allow your device to communicate securely, even without internet.',
                           style: TextStyle(
                             fontSize: 13.sp,
                             color: AppColors.secondaryTextDefault,
@@ -136,11 +136,11 @@ class _KeyProvisionScreenState extends ConsumerState<KeyProvisionScreen> {
                     fillColor: Colors.white,
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'rsa', child: Text('RSA')),
-                    DropdownMenuItem(value: 'ed25519', child: Text('Ed25519')),
+                    DropdownMenuItem(value: 'rsa', child: Text('Standard (RSA)')),
+                    DropdownMenuItem(value: 'ed25519', child: Text('Fast & Secure')),
                     DropdownMenuItem(
                       value: 'ecdsa',
-                      child: Text('ECDSA (P-256)'),
+                      child: Text('Compact (ECDSA P-256)'),
                     ),
                   ],
                   validator: FormBuilderValidators.required(),
@@ -169,7 +169,7 @@ class _KeyProvisionScreenState extends ConsumerState<KeyProvisionScreen> {
                 ),
                 SizedBox(height: 32.h),
                 CustomButton(
-                  label: 'Provision Key',
+                  label: 'Register Security Key',
                   onPressed: _handleProvisionKey,
                   isLoading: isLoading,
                 ),

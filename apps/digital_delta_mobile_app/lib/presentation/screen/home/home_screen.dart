@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../core/security/rbac.dart';
 import '../../../core/security/rbac_provider.dart';
 import '../../connectivity/notifier/provider.dart';
+import '../../notifier/app_data_notifier.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
 
@@ -125,6 +126,7 @@ class HomeScreen extends ConsumerWidget {
     final guard = ref.watch(rbacGuardProvider);
     final role = ref.watch(currentRoleProvider);
     final connectivity = ref.watch(connectivityNotifierProvider);
+    final dataState = ref.watch(appDataNotifierProvider);
 
     final syncInfo = connectivity.when(
       initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
@@ -201,27 +203,73 @@ class HomeScreen extends ConsumerWidget {
             _WelcomeBanner(role: role),
             SizedBox(height: 24.h),
 
-            // Quick stats
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickStatCard(
-                    icon: Icons.local_shipping,
-                    value: '24',
-                    label: 'Active Vehicles',
-                    color: Colors.blue,
+            // Quick stats — live data from AppDataService
+            dataState.when(
+              loading: () => Row(
+                children: [
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: Icons.local_shipping,
+                      value: '…',
+                      label: 'Active Vehicles',
+                      color: Colors.blue,
+                    ),
                   ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: _QuickStatCard(
-                    icon: Icons.inventory_2,
-                    value: '156',
-                    label: 'Deliveries',
-                    color: Colors.orange,
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: Icons.task_alt,
+                      value: '…',
+                      label: 'Active Missions',
+                      color: Colors.green,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              error: (_, __) => Row(
+                children: [
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: Icons.local_shipping,
+                      value: '?',
+                      label: 'Active Vehicles',
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: Icons.task_alt,
+                      value: '?',
+                      label: 'Active Missions',
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ],
+              ),
+              data: (snap) => Row(
+                children: [
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: Icons.local_shipping,
+                      value: '${snap.activeVehicles}',
+                      label: 'Active Vehicles',
+                      color: Colors.blue,
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: _QuickStatCard(
+                      icon: snap.slaBreached > 0
+                          ? Icons.warning_amber_rounded
+                          : Icons.task_alt,
+                      value: '${snap.activeMissions}',
+                      label: 'Active Missions',
+                      color: snap.slaBreached > 0 ? Colors.red : Colors.green,
+                    ),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: 24.h),
 
@@ -319,7 +367,7 @@ class _WelcomeBanner extends StatelessWidget {
         UserRole.campCommander =>
           'Oversee camp resources, triage priorities & fleet dispatch.',
         UserRole.syncAdmin =>
-          'Full access — resolve CRDT conflicts, manage sync nodes & users.',
+          'Full access — resolve data conflicts, manage sync devices & users.',
       };
 }
 

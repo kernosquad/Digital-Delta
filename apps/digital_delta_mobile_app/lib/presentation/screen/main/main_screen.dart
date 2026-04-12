@@ -2,95 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import '../../../core/security/rbac.dart';
-import '../../../core/security/rbac_provider.dart';
+import '../../connectivity/notifier/provider.dart';
+import '../../notifier/app_data_notifier.dart';
 import '../../theme/color.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../fleet/drone_dispatch_screen.dart';
+import '../fleet/fleet_screen.dart';
 import '../home/home_screen.dart';
-import '../profile/profile_screen.dart';
-import '../routing/routing_screen.dart';
+import '../map/map_screen.dart';
+import '../mesh/mesh_scan_screen.dart';
 
 // ---------------------------------------------------------------------------
-// Nav-item descriptor
-// ---------------------------------------------------------------------------
-
-class _NavItem {
-  final Widget screen;
-  final String label;
-  final IconData icon;
-  final IconData selectedIcon;
-
-  const _NavItem({
-    required this.screen,
-    required this.label,
-    required this.icon,
-    required this.selectedIcon,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Role → visible tabs
-// ---------------------------------------------------------------------------
-
-/// Returns the ordered list of nav items the [role] is allowed to see.
-///
-/// Access rules (align with [_rolePermissions] in rbac.dart):
-///
-/// | Tab        | field_volunteer | supply_manager | drone_operator | camp_commander | sync_admin |
-/// |------------|:-:|:-:|:-:|:-:|:-:|
-/// | Home       | ✓ | ✓ | ✓ | ✓ | ✓ |
-/// | Dashboard  | ✓ | ✓ | ✓ | ✓ | ✓ |
-/// | Routes     | ✓ | ✓ | ✓ | ✓ | ✓ |
-/// | Fleet      |   |   | ✓ | ✓ | ✓ |
-/// | Profile    | ✓ | ✓ | ✓ | ✓ | ✓ |
-List<_NavItem> _itemsForRole(UserRole role) {
-  const home = _NavItem(
-    screen: HomeScreen(),
-    label: 'Home',
-    icon: Icons.home_outlined,
-    selectedIcon: Icons.home,
-  );
-  const dashboard = _NavItem(
-    screen: DashboardScreen(),
-    label: 'Dashboard',
-    icon: Icons.dashboard_outlined,
-    selectedIcon: Icons.dashboard,
-  );
-  const routes = _NavItem(
-    screen: RoutingScreen(),
-    label: 'Routes',
-    icon: Icons.route_outlined,
-    selectedIcon: Icons.route,
-  );
-  const fleet = _NavItem(
-    screen: DroneDispatchScreen(),
-    label: 'Fleet',
-    icon: Icons.air_outlined,
-    selectedIcon: Icons.air,
-  );
-  const profile = _NavItem(
-    screen: ProfileScreen(),
-    label: 'Profile',
-    icon: Icons.person_outline,
-    selectedIcon: Icons.person,
-  );
-
-  // Fleet requires controlDrones OR executeDelivery
-  final canAccessFleet = role.hasPermission(Permission.controlDrones) ||
-      role.hasPermission(Permission.executeDelivery);
-
-  return [
-    home,
-    dashboard,
-    routes,
-    if (canAccessFleet) fleet,
-    profile,
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// MainScreen
+// MainScreen — 5-tab shell with connectivity-triggered data sync
+// Tabs: Home | CRDT Sync | Map | Fleet | Mesh
 // ---------------------------------------------------------------------------
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -103,39 +26,94 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   int _currentIndex = 0;
 
+  static const List<Widget> _screens = [
+    HomeScreen(),
+    DashboardScreen(),
+    MapScreen(),
+    FleetScreen(),
+    MeshScanScreen(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Whenever the device goes from offline → online, invalidate caches and
+    // pull fresh data so all screens reflect the latest server state.
+    ref.listenManual(connectivityNotifierProvider, (prev, next) {
+      bool wasOnline = false;
+      bool isNowOnline = false;
+      prev?.when(
+        initial: () {},
+        online: (_) => wasOnline = true,
+        offline: () {},
+      );
+      next.when(
+        initial: () {},
+        online: (_) => isNowOnline = true,
+        offline: () {},
+      );
+      if (isNowOnline && !wasOnline) {
+        ref.read(appDataNotifierProvider.notifier).syncAndRefresh();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final role = ref.watch(currentRoleProvider);
-    final items = _itemsForRole(role);
-
-    // Guard against stale index when the role changes (e.g. after re-login)
-    final safeIndex = _currentIndex.clamp(0, items.length - 1);
-
     return Scaffold(
-      body: IndexedStack(
-        index: safeIndex,
-        children: items.map((i) => i.screen).toList(),
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
         backgroundColor: Colors.white,
         indicatorColor: AppColors.primarySurfaceDefault.withValues(alpha: 0.1),
-        destinations: items
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(item.icon, size: 24.sp),
-                selectedIcon: Icon(
-                  item.selectedIcon,
-                  size: 24.sp,
-                  color: AppColors.primarySurfaceDefault,
-                ),
-                label: item.label,
-              ),
-            )
-            .toList(),
+        destinations: [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.home,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.sync_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.sync,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Sync',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.map,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.local_shipping_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.local_shipping,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Fleet',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.hub_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.hub,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Mesh',
+          ),
+        ],
       ),
     );
   }

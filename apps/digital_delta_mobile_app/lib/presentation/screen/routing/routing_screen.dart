@@ -80,7 +80,7 @@ class _RoutingScreenState extends State<RoutingScreen>
 
   Future<void> _injectToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = prefs.getString('access_token');
     if (token != null) {
       _dio.options.headers['Authorization'] = 'Bearer $token';
     }
@@ -980,7 +980,7 @@ class _RoutingScreenState extends State<RoutingScreen>
                     icon: _breachLoading
                         ? SizedBox(width: 16.w, height: 16.h, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : Icon(Icons.bolt, color: Colors.white, size: 16.sp),
-                    label: Text(_breachLoading ? 'Predicting…' : 'Predict SLA Breach',
+                    label: Text(_breachLoading ? 'Checking…' : 'Check Deadline Risk',
                         style: TextStyle(fontSize: 13.sp, color: Colors.white, fontWeight: FontWeight.w600)),
                   ),
                 ),

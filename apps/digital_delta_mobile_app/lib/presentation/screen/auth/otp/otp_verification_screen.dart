@@ -137,7 +137,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Verify OTP'),
+        title: const Text('Verify Security Code'),
         centerTitle: true,
         elevation: 0,
       ),

@@ -151,8 +151,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   SizedBox(height: 16.h),
                   CustomFormField(
                     name: 'otp_code',
-                    label: 'OTP Code',
-                    hint: 'Enter 6-digit code',
+                    label: 'Security Code',
+                    hint: 'Enter your 6-digit code',
                     keyboardType: TextInputType.number,
 
                     validator: FormBuilderValidators.compose([
