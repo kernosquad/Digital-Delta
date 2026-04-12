@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../theme/color.dart';
-import '../cargo/cargo_screen.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../fleet/fleet_screen.dart';
+import '../fleet/drone_dispatch_screen.dart';
 import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
+import '../routing/routing_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -21,8 +21,8 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     DashboardScreen(),
-    FleetScreen(),
-    CargoScreen(),
+    RoutingScreen(),
+    DroneDispatchScreen(),
     ProfileScreen(),
   ];
 
@@ -57,22 +57,22 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Dashboard',
           ),
           NavigationDestination(
-            icon: Icon(Icons.local_shipping_outlined, size: 24.sp),
+            icon: Icon(Icons.route_outlined, size: 24.sp),
             selectedIcon: Icon(
-              Icons.local_shipping,
+              Icons.route,
+              size: 24.sp,
+              color: AppColors.primarySurfaceDefault,
+            ),
+            label: 'Routes',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.air_outlined, size: 24.sp),
+            selectedIcon: Icon(
+              Icons.air,
               size: 24.sp,
               color: AppColors.primarySurfaceDefault,
             ),
             label: 'Fleet',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined, size: 24.sp),
-            selectedIcon: Icon(
-              Icons.inventory_2,
-              size: 24.sp,
-              color: AppColors.primarySurfaceDefault,
-            ),
-            label: 'Cargo',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline, size: 24.sp),

@@ -14,7 +14,9 @@ import '../screen/mesh/mesh_chat_screen.dart';
 import '../screen/mesh/mesh_network_screen.dart';
 import '../screen/mesh/mesh_scan_screen.dart';
 import '../screen/onboarding/onboarding_screen.dart';
+import '../screen/fleet/drone_dispatch_screen.dart';
 import '../screen/pod/pod_scanner_screen.dart';
+import '../screen/routing/routing_screen.dart';
 import '../screen/splash/splash_screen.dart';
 
 class Routes {
@@ -37,6 +39,8 @@ class Routes {
   static const String meshScan = '/mesh-scan';
   static const String meshChat = '/mesh-chat';
   static const String podScanner = '/pod-scanner';
+  static const String routing = '/routing';
+  static const String droneDispatch = '/drone-dispatch';
 
   static Route<dynamic> generateRoutes(RouteSettings settings) {
     switch (settings.name) {
@@ -96,6 +100,10 @@ class Routes {
         );
       case podScanner:
         return MaterialPageRoute(builder: (_) => const PodScannerScreen());
+      case routing:
+        return MaterialPageRoute(builder: (_) => const RoutingScreen());
+      case droneDispatch:
+        return MaterialPageRoute(builder: (_) => const DroneDispatchScreen());
       default:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
     }

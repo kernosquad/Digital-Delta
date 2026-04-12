@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/mesh/battery_mesh_throttler.dart';
 import '../../../di/cache_module.dart';
 import '../../../domain/enum/ble_connection_state.dart';
 import '../../../domain/model/ble/ble_device_model.dart';
@@ -468,6 +469,10 @@ class _Body extends ConsumerWidget {
             queued: summary.queuedMessages,
             conflicts: summary.openConflicts,
           ),
+          SizedBox(height: 14.h),
+
+          // ── M8.4 Battery-Aware Mesh Throttle ────────────────────────────
+          const _BatteryThrottlePanel(),
           SizedBox(height: 20.h),
 
           // ── Devices section ─────────────────────────────────────────────
@@ -1373,6 +1378,298 @@ class _QueuedMessageTile extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── M8.4 Battery-aware mesh throttle panel ─────────────────────────────────────
+
+class _BatteryThrottlePanel extends StatefulWidget {
+  const _BatteryThrottlePanel();
+
+  @override
+  State<_BatteryThrottlePanel> createState() => _BatteryThrottlePanelState();
+}
+
+class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
+  final BatteryMeshThrottler _throttler = BatteryMeshThrottler();
+  ThrottleStats? _simStats;
+  bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _throttler.addListener(_onThrottleUpdate);
+    _throttler.startMonitoring();
+  }
+
+  @override
+  void dispose() {
+    _throttler.removeListener(_onThrottleUpdate);
+    _throttler.stopMonitoring();
+    _throttler.dispose();
+    super.dispose();
+  }
+
+  void _onThrottleUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _runSim() async {
+    setState(() => _simStats = null);
+    try {
+      final stats = await _throttler.runSimulation();
+      if (mounted) setState(() => _simStats = stats);
+    } catch (_) {}
+  }
+
+  Color _factorColor(double f) {
+    if (f >= 0.8) return Colors.green;
+    if (f >= 0.4) return Colors.orange;
+    return Colors.red;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final factor = _throttler.throttleFactor;
+    final intervalSecs = _throttler.currentIntervalSecs;
+    final battery = _throttler.batteryLevel;
+    final isCharging = _throttler.isCharging;
+    final rules = _throttler.log.isNotEmpty ? _throttler.log.last.activeRules : <String>[];
+    final isSim = _throttler.isSimulating;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A1628),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+              child: Row(
+                children: [
+                  Icon(Icons.battery_charging_full, size: 16.sp, color: _factorColor(factor)),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'M8.4 · BLE Throttle',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Factor pill
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                    decoration: BoxDecoration(
+                      color: _factorColor(factor).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      '×${factor.toStringAsFixed(2)}  ${intervalSecs}s',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                        color: _factorColor(factor),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 6.w),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18.sp,
+                    color: Colors.white54,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_expanded) ...[
+            Divider(height: 1, color: Colors.white12),
+            Padding(
+              padding: EdgeInsets.all(12.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Battery + state row
+                  Row(
+                    children: [
+                      _ThrottleStat(
+                        label: 'Battery',
+                        value: '$battery%${isCharging ? ' ⚡' : ''}',
+                        color: battery < 30 ? Colors.red : Colors.green,
+                      ),
+                      SizedBox(width: 16.w),
+                      _ThrottleStat(
+                        label: 'Interval',
+                        value: '${intervalSecs}s',
+                        color: AppColors.primarySurfaceDefault,
+                      ),
+                      SizedBox(width: 16.w),
+                      _ThrottleStat(
+                        label: 'Stationary',
+                        value: _throttler.isStationary ? 'Yes' : 'No',
+                        color: _throttler.isStationary ? Colors.orange : Colors.green,
+                      ),
+                      SizedBox(width: 16.w),
+                      _ThrottleStat(
+                        label: 'Near Node',
+                        value: _throttler.nearKnownNode ? 'Yes' : 'No',
+                        color: _throttler.nearKnownNode ? Colors.blue : Colors.white54,
+                      ),
+                    ],
+                  ),
+
+                  // Active rules
+                  if (rules.isNotEmpty) ...[
+                    SizedBox(height: 10.h),
+                    Wrap(
+                      spacing: 6.w,
+                      runSpacing: 4.h,
+                      children: rules.map((r) => Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20.r),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          r,
+                          style: TextStyle(fontSize: 9.sp, color: Colors.orange),
+                        ),
+                      )).toList(),
+                    ),
+                  ],
+
+                  SizedBox(height: 12.h),
+
+                  // Simulation controls
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: isSim ? null : _runSim,
+                          icon: isSim
+                              ? SizedBox(
+                                  width: 12.w,
+                                  height: 12.h,
+                                  child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Icon(Icons.play_arrow, size: 14.sp),
+                          label: Text(
+                            isSim ? 'Simulating 10 min…' : 'Run 10-min Simulation',
+                            style: TextStyle(fontSize: 11.sp),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primarySurfaceDefault,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 8.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_throttler.isStationary || _throttler.nearKnownNode) ...[
+                        SizedBox(width: 8.w),
+                        IconButton(
+                          tooltip: 'Reset state overrides',
+                          onPressed: () {
+                            _throttler.setStationary(false);
+                            _throttler.setNearKnownNode(false);
+                          },
+                          icon: Icon(Icons.refresh, size: 18.sp, color: Colors.white54),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // Simulation results
+                  if (_simStats != null) ...[
+                    SizedBox(height: 12.h),
+                    Container(
+                      padding: EdgeInsets.all(10.w),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Simulation Results (10 min)',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green,
+                            ),
+                          ),
+                          SizedBox(height: 8.h),
+                          Row(
+                            children: [
+                              _SimStat(label: 'Scans saved', value: '${_simStats!.totalScansSaved}'),
+                              _SimStat(label: 'Avg throttle', value: '×${_simStats!.avgThrottleFactor.toStringAsFixed(2)}'),
+                              _SimStat(label: 'Energy saved', value: '${_simStats!.energySavedMj.toStringAsFixed(1)} mJ'),
+                              _SimStat(label: 'Events', value: '${_simStats!.totalEvents}'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ThrottleStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  const _ThrottleStat({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
+        SizedBox(height: 2.h),
+        Text(value, style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700, color: color)),
+      ],
+    );
+  }
+}
+
+class _SimStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _SimStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+          Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38), textAlign: TextAlign.center),
         ],
       ),
     );
