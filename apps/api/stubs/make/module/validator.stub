@@ -1,0 +1,26 @@
+{{#var entity = generators.createEntity(name)}}
+{{#var moduleFilePath = string(entity.name).snakeCase().toString()}}
+{{#var moduleCamelCase = string(entity.name).camelCase().toString()}}
+{{#var modulePascalCase = string(entity.name).pascalCase().toString()}}
+{{#var moduleFileName = string(entity.name).snakeCase().ext('.validator.ts').toString()}}
+{{{
+  exports({
+    to: app.makePath(
+      'app/modules', 
+      moduleFilePath, 
+      entity.path, 
+      moduleFileName
+    ),
+  })
+}}}
+import vine from '@vinejs/vine';
+
+import type { Infer } from '@vinejs/vine/types';
+
+export const {{ moduleCamelCase }}Validator = vine.compile(
+  vine.object({
+    name: vine.string(), // Example field
+  })
+);
+
+export type {{ modulePascalCase }}Type = Infer<typeof {{ moduleCamelCase }}Validator>;

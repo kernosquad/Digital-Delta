@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+build
+.next
+out
+.turbo
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Misc
+.DS_Store
+.env*
+!.env.example
+
+# Test coverage
+coverage
+
+# Package manager lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock

@@ -1,0 +1,23 @@
+{{#var entity = generators.createEntity(name)}}
+{{#var moduleFilePath = string(entity.name).snakeCase().toString()}}
+{{#var modulePascalCase = string(entity.name).pascalCase().toString()}}
+{{#var moduleFileName = string(entity.name).snakeCase().ext('.route.ts').toString()}}
+{{{
+  exports({
+    to: app.makePath(
+      'app/modules', 
+      moduleFilePath, 
+      entity.path, 
+      moduleFileName
+    ),
+  })
+}}}
+import router from '@adonisjs/core/services/router';
+
+const {{ modulePascalCase }}Controller = () => import('./{{ moduleFilePath }}.controller.js');
+
+router
+  .group(function {{ modulePascalCase }}RoutesCb() {
+    router.get('/', [{{ modulePascalCase }}Controller, 'index']);
+  })
+  .prefix('/{{ string.dashCase(entity.name) }}/v1');

@@ -1,0 +1,32 @@
+{{#var entity = generators.createEntity(name)}}
+{{#var moduleFilePath = string(entity.name).snakeCase().toString()}}
+{{#var modulePascalCase = string(entity.name).pascalCase().toString()}}
+{{#var moduleCamelCase = string(entity.name).camelCase().toString()}}
+{{#var moduleFileName = string(entity.name).snakeCase().ext('.controller.ts').toString()}}
+{{{
+  exports({
+    to: app.makePath(
+      'app/modules', 
+      moduleFilePath, 
+      entity.path, 
+      moduleFileName
+    ),
+  })
+}}}
+import { inject } from '@adonisjs/core';
+
+import { {{ moduleCamelCase }}Validator } from './{{ moduleFilePath }}.validator.js';
+
+import type { {{ modulePascalCase }}Service } from './{{ moduleFilePath }}.service.js';
+import type { HttpContext } from '@adonisjs/core/http';
+
+@inject()
+export default class {{ modulePascalCase }}Controller {
+  constructor(private {{ moduleCamelCase }}Service: {{ modulePascalCase }}Service) {}
+
+  async index(ctx: HttpContext) {
+    const { request } = ctx;
+    const payload = await request.validateUsing({{ moduleCamelCase }}Validator);
+    return this.{{ moduleCamelCase }}Service.index(ctx, payload);
+  }
+}

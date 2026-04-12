@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+build
+.next
+out
+.turbo
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Environment files
+.env*
+!.env.example
+
+# Test coverage
+coverage
+
+# Generated files
+next-env.d.ts
+
+# Config files that shouldn't be linted
+*.config.js
+*.config.mjs
+.lintstagedrc.js
+commitlint.config.js
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
