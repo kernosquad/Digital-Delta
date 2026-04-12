@@ -4,24 +4,31 @@ import {
   AlertOutlined,
   BankOutlined,
   CheckCircleOutlined,
+  EditOutlined,
   EnvironmentOutlined,
   HomeOutlined,
   MedicineBoxOutlined,
+  PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Button,
   Card,
   Col,
+  Drawer,
+  Form,
   Input,
+  InputNumber,
+  Modal,
   Progress,
   Row,
   Select,
   Skeleton,
+  Switch,
   Tag,
   Tooltip,
   Typography,
@@ -49,7 +56,23 @@ const TYPE_COLORS: Record<LocationType, string> = {
   staging: 'purple',
 };
 
-function LocationCard({ loc }: { loc: Location }) {
+interface UpdateStatusBody {
+  is_flooded?: boolean;
+  is_active?: boolean;
+  current_occupancy?: number;
+}
+
+interface CreateLocationBody {
+  node_code: string;
+  name: string;
+  type: string;
+  latitude: number;
+  longitude: number;
+  capacity?: number;
+  notes?: string;
+}
+
+function LocationCard({ loc, onEdit }: { loc: Location; onEdit: (loc: Location) => void }) {
   const occupancyPct =
     loc.max_capacity > 0 ? Math.round((loc.current_occupancy / loc.max_capacity) * 100) : 0;
 
@@ -60,6 +83,15 @@ function LocationCard({ loc }: { loc: Location }) {
     <Card
       size="small"
       className={`h-full transition-shadow hover:shadow-dd-md! ${loc.is_flooded ? 'border-dd-red-300!' : ''}`}
+      extra={
+        <Button
+          type="text"
+          size="small"
+          icon={<EditOutlined />}
+          onClick={() => onEdit(loc)}
+          className="text-dd-gray-400! hover:text-dd-primary-600!"
+        />
+      }
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -85,10 +117,14 @@ function LocationCard({ loc }: { loc: Location }) {
               FLOODED
             </Tag>
           )}
+          {!loc.is_active && (
+            <Tag color="default" className="text-xs">
+              Inactive
+            </Tag>
+          )}
         </div>
       </div>
 
-      {/* Coordinates */}
       <div className="flex items-center gap-1 mb-3">
         <EnvironmentOutlined className="text-dd-gray-400 text-xs" />
         <Text className="text-dd-gray-500! font-mono text-xs">
@@ -96,7 +132,6 @@ function LocationCard({ loc }: { loc: Location }) {
         </Text>
       </div>
 
-      {/* Occupancy */}
       {loc.max_capacity > 0 && (
         <div className="mb-2">
           <div className="flex justify-between mb-1">
@@ -114,7 +149,6 @@ function LocationCard({ loc }: { loc: Location }) {
         </div>
       )}
 
-      {/* Contact */}
       {loc.contact_name && (
         <div className="mt-2 pt-2 border-t border-dd-gray-100">
           <Text className="text-dd-gray-500! text-xs">
@@ -128,9 +162,14 @@ function LocationCard({ loc }: { loc: Location }) {
 }
 
 export default function MapPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<LocationType | 'all'>('all');
   const [floodFilter, setFloodFilter] = useState<'all' | 'flooded' | 'clear'>('all');
+  const [editTarget, setEditTarget] = useState<Location | null>(null);
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  const [editForm] = Form.useForm<UpdateStatusBody>();
+  const [addForm] = Form.useForm<CreateLocationBody>();
 
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery<Location[]>({
     queryKey: ['locations'],
@@ -138,6 +177,36 @@ export default function MapPage() {
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateStatusBody }) =>
+      api.patch(`/locations/${id}/status`, body).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setEditTarget(null);
+      editForm.resetFields();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (body: CreateLocationBody) =>
+      api.post<Location>('/locations', body).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] });
+      setAddDrawerOpen(false);
+      addForm.resetFields();
+    },
+  });
+
+  const openEdit = (loc: Location) => {
+    setEditTarget(loc);
+    editForm.setFieldsValue({
+      is_flooded: loc.is_flooded,
+      is_active: loc.is_active,
+      current_occupancy: loc.current_occupancy,
+    });
+  };
 
   const locations = useMemo(() => {
     if (!data) return [];
@@ -161,7 +230,6 @@ export default function MapPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <Title level={4} className="mb-0!">
@@ -171,17 +239,21 @@ export default function MapPage() {
             {lastUpdated ? `Updated ${lastUpdated} · auto-refreshes every 60s` : 'Loading…'}
           </Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isLoading}>
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isLoading}>
+            Refresh
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddDrawerOpen(true)}>
+            Add Location
+          </Button>
+        </div>
       </div>
 
-      {/* Flood alert */}
       {floodedCount > 0 && (
         <Alert
           icon={<WarningOutlined />}
           message={`${floodedCount} location${floodedCount > 1 ? 's' : ''} currently flooded`}
-          description="Flooded locations may have restricted access — plan alternative routes."
+          description="Click the edit icon on any card to update flood status and occupancy."
           type="warning"
           showIcon
           className="mb-4!"
@@ -192,7 +264,6 @@ export default function MapPage() {
         <Alert message="Failed to load locations." type="error" showIcon className="mb-4" />
       )}
 
-      {/* Legend + summary */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         {(['camp', 'hospital', 'warehouse', 'checkpoint', 'staging'] as LocationType[]).map(t => (
           <Tooltip key={t} title={`Filter by ${t}`}>
@@ -208,7 +279,6 @@ export default function MapPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <Input
           prefix={<SearchOutlined className="text-dd-gray-400" />}
@@ -235,7 +305,6 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* Location grid */}
       {isLoading ? (
         <Row gutter={[16, 16]}>
           {Array.from({ length: 6 }).map((_, i) => (
@@ -255,11 +324,149 @@ export default function MapPage() {
         <Row gutter={[16, 16]}>
           {locations.map(loc => (
             <Col key={loc.id} xs={24} sm={12} lg={8} xl={6}>
-              <LocationCard loc={loc} />
+              <LocationCard loc={loc} onEdit={openEdit} />
             </Col>
           ))}
         </Row>
       )}
+
+      {/* ── Edit Status Modal ──────────────────────────────────── */}
+      <Modal
+        title={`Update: ${editTarget?.name ?? ''}`}
+        open={!!editTarget}
+        onCancel={() => {
+          setEditTarget(null);
+          editForm.resetFields();
+        }}
+        onOk={() => editForm.submit()}
+        okText="Save Changes"
+        confirmLoading={updateStatusMutation.isPending}
+        destroyOnClose
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={values => {
+            if (!editTarget) return;
+            updateStatusMutation.mutate({ id: editTarget.id, body: values });
+          }}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="is_flooded" label="Flooded" valuePropName="checked">
+                <Switch checkedChildren="Flooded" unCheckedChildren="Clear" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="is_active" label="Active" valuePropName="checked">
+                <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
+              </Form.Item>
+            </Col>
+          </Row>
+          {editTarget && editTarget.max_capacity > 0 && (
+            <Form.Item
+              name="current_occupancy"
+              label={`Current Occupancy (max: ${editTarget.max_capacity})`}
+            >
+              <InputNumber min={0} max={editTarget.max_capacity} className="w-full!" />
+            </Form.Item>
+          )}
+        </Form>
+        {updateStatusMutation.isError && (
+          <Alert message="Update failed." type="error" showIcon className="mt-2" />
+        )}
+      </Modal>
+
+      {/* ── Add Location Drawer ────────────────────────────────── */}
+      <Drawer
+        title="Add New Location"
+        placement="right"
+        width={440}
+        open={addDrawerOpen}
+        onClose={() => {
+          setAddDrawerOpen(false);
+          addForm.resetFields();
+        }}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              onClick={() => {
+                setAddDrawerOpen(false);
+                addForm.resetFields();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              loading={createMutation.isPending}
+              onClick={() => addForm.submit()}
+            >
+              Create Location
+            </Button>
+          </div>
+        }
+      >
+        <Form form={addForm} layout="vertical" onFinish={v => createMutation.mutate(v)}>
+          <Row gutter={12}>
+            <Col span={10}>
+              <Form.Item name="node_code" label="Node Code" rules={[{ required: true }]}>
+                <Input placeholder="N7" style={{ textTransform: 'uppercase' }} />
+              </Form.Item>
+            </Col>
+            <Col span={14}>
+              <Form.Item name="type" label="Type" rules={[{ required: true }]}>
+                <Select
+                  options={[
+                    { value: 'central_command', label: 'Central Command' },
+                    { value: 'supply_drop', label: 'Supply Drop' },
+                    { value: 'relief_camp', label: 'Relief Camp' },
+                    { value: 'waypoint', label: 'Waypoint' },
+                    { value: 'hospital', label: 'Hospital' },
+                    { value: 'drone_base', label: 'Drone Base' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+            <Input placeholder="Sunamganj Sadar Camp" />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="latitude" label="Latitude" rules={[{ required: true }]}>
+                <InputNumber
+                  min={-90}
+                  max={90}
+                  step={0.0001}
+                  className="w-full!"
+                  placeholder="25.0658"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="longitude" label="Longitude" rules={[{ required: true }]}>
+                <InputNumber
+                  min={-180}
+                  max={180}
+                  step={0.0001}
+                  className="w-full!"
+                  placeholder="91.4073"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="capacity" label="Capacity">
+            <InputNumber min={0} className="w-full!" placeholder="Max occupancy (optional)" />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={2} placeholder="Optional notes" />
+          </Form.Item>
+          {createMutation.isError && (
+            <Alert message="Failed to create location." type="error" showIcon />
+          )}
+        </Form>
+      </Drawer>
     </div>
   );
 }

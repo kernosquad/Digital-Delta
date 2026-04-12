@@ -1,19 +1,19 @@
-import router from '@adonisjs/core/services/router';
+import router from '@adonisjs/core/services/router'
 
-import { middleware } from '#start/kernel';
+import { middleware } from '#start/kernel'
 
-const HandoffController = () => import('./handoff.controller.js');
+const HandoffController = () => import('./handoff.controller.js')
 
 router
   .group(() => {
-    router.get('/', [HandoffController, 'index']);
-    router.get('/:id', [HandoffController, 'show']);
+    router.get('/', [HandoffController, 'index'])
+    router.get('/:id', [HandoffController, 'show'])
     router
       .group(() => {
-        router.post('/', [HandoffController, 'store']);
-        router.patch('/:id/complete', [HandoffController, 'complete']);
+        router.post('/', [HandoffController, 'store'])
+        router.patch('/:id/complete', [HandoffController, 'complete'])
       })
-      .use(middleware.role({ roles: ['drone_operator', 'supply_manager', 'sync_admin'] }));
+      .use(middleware.role({ roles: ['drone_operator', 'supply_manager', 'sync_admin'] }))
   })
   .prefix('/api/handoff')
-  .use(middleware.auth({ guards: ['jwt'] }));
+  .use(middleware.auth({ guards: ['jwt', 'web'] }))

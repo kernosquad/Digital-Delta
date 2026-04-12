@@ -132,6 +132,119 @@ export interface TriageDecision {
   created_at: string;
 }
 
+// ── Network ───────────────────────────────────────────────────────────────────
+
+export type RouteType = 'road' | 'river' | 'airway';
+
+export interface NetworkEdge {
+  id: number;
+  edge_code: string;
+  source_location_id: number;
+  target_location_id: number;
+  source_name?: string;
+  target_name?: string;
+  route_type: RouteType;
+  base_travel_mins: number;
+  current_travel_mins: number | null;
+  max_payload_kg: number | null;
+  allowed_vehicles: string[] | null;
+  is_flooded: boolean;
+  is_blocked: boolean;
+  risk_score: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Handoff ───────────────────────────────────────────────────────────────────
+
+export type HandoffStatus = 'scheduled' | 'in_progress' | 'completed' | 'failed';
+
+export interface Handoff {
+  id: number;
+  mission_id: number;
+  drone_vehicle_id: number;
+  ground_vehicle_id: number;
+  rendezvous_location_id: number | null;
+  rendezvous_lat: number;
+  rendezvous_lng: number;
+  scheduled_at: string;
+  completed_at: string | null;
+  status: HandoffStatus;
+  mission_code?: string;
+  drone_name?: string;
+  ground_name?: string;
+  created_at: string;
+}
+
+// ── Supply Item ───────────────────────────────────────────────────────────────
+
+export type SupplyCategory = 'medical' | 'food' | 'water' | 'shelter' | 'equipment' | 'other';
+
+export interface SupplyItem {
+  id: number;
+  name: string;
+  category: SupplyCategory;
+  unit: string;
+  weight_per_unit_kg: number;
+  priority_class: PriorityClass;
+  sla_hours: number;
+  created_at: string;
+}
+
+// ── Sensor ────────────────────────────────────────────────────────────────────
+
+export type SensorReadingType =
+  | 'rainfall_mm'
+  | 'water_level_cm'
+  | 'wind_speed_kmh'
+  | 'soil_saturation_pct'
+  | 'temperature_c';
+
+export interface SensorReading {
+  id: number;
+  location_id: number;
+  reading_type: SensorReadingType;
+  value: number;
+  recorded_at: string;
+  source: 'sensor' | 'mock_api' | 'manual';
+  location_name?: string;
+  created_at: string;
+}
+
+export interface RoutePrediction {
+  edge_id: number;
+  edge_code: string;
+  impassability_probability: number;
+  predicted_at: string;
+  features: Record<string, number>;
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────────
+
+export interface SyncConflict {
+  id: number;
+  table_name: string;
+  record_id: string;
+  node_a_id: string;
+  node_b_id: string;
+  node_a_value: Record<string, unknown>;
+  node_b_value: Record<string, unknown>;
+  vector_clock_a: Record<string, number>;
+  vector_clock_b: Record<string, number>;
+  status: 'pending' | 'resolved';
+  resolution: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export interface SyncNode {
+  id: string;
+  device_id: string;
+  last_seen_at: string;
+  vector_clock: Record<string, number>;
+  is_online: boolean;
+}
+
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 
 export interface DashboardStats {

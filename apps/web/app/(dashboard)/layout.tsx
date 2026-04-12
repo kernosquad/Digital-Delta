@@ -1,9 +1,11 @@
 'use client';
 
 import {
+  AreaChartOutlined,
   AuditOutlined,
   BarChartOutlined,
   CarOutlined,
+  ClusterOutlined,
   DashboardOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -12,6 +14,8 @@ import {
   RobotOutlined,
   RocketOutlined,
   SafetyOutlined,
+  SwapOutlined,
+  SyncOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   WarningOutlined,
@@ -48,6 +52,10 @@ const NAV_ITEMS = [
   { key: '/supply', icon: <BarChartOutlined />, label: 'Supply Inventory' },
   { key: '/fleet', icon: <CarOutlined />, label: 'Fleet & Drones' },
   { key: '/triage', icon: <WarningOutlined />, label: 'Triage Queue' },
+  { key: '/network', icon: <ClusterOutlined />, label: 'Route Network' },
+  { key: '/handoff', icon: <SwapOutlined />, label: 'Handoff Manager' },
+  { key: '/sensors', icon: <AreaChartOutlined />, label: 'Sensor Data' },
+  { key: '/sync', icon: <SyncOutlined />, label: 'Sync Conflicts' },
   { key: '/ml', icon: <RobotOutlined />, label: 'ML Predictions' },
   { key: '/users', icon: <TeamOutlined />, label: 'User Management' },
   { key: '/audit', icon: <AuditOutlined />, label: 'Audit Log' },
