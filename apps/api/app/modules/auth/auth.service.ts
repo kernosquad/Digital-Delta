@@ -345,7 +345,6 @@ export class AuthService {
       phone: user.phone,
       role: user.role,
       status: user.status,
-      email_verified: !!user.emailVerifiedAt,
       last_seen_at: user.lastSeenAt,
     });
   }

@@ -46,15 +46,6 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column()
   declare status: UserStatus;
 
-  @column({ serializeAs: null })
-  declare emailVerificationCode: string | null;
-
-  @column.dateTime({ serializeAs: null })
-  declare emailVerificationExpiresAt: DateTime | null;
-
-  @column.dateTime()
-  declare emailVerifiedAt: DateTime | null;
-
   @column.dateTime()
   declare lastSeenAt: DateTime | null;
 

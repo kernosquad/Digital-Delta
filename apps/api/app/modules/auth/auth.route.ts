@@ -17,8 +17,6 @@ router
   .group(() => {
     router.post('/logout', [AuthController, 'logout']);
     router.get('/me', [AuthController, 'me']);
-    router.post('/email/verify', [AuthController, 'verifyEmail']);
-    router.post('/email/resend', [AuthController, 'resendVerification']);
     router.post('/otp/setup', [AuthController, 'setupOtp']);
     router.post('/otp/verify', [AuthController, 'verifyOtp']);
     router.post('/keys/provision', [AuthController, 'provisionKey']);
