@@ -8,9 +8,11 @@ import '../screen/auth/otp/otp_setup_screen.dart';
 import '../screen/auth/otp/otp_verification_screen.dart';
 import '../screen/auth/otp/otp_verify_screen.dart';
 import '../screen/auth/register/register_screen.dart';
-import '../screen/ble/ble_screen.dart';
 import '../screen/home/home_screen.dart';
 import '../screen/main/main_screen.dart';
+import '../screen/mesh/mesh_chat_screen.dart';
+import '../screen/mesh/mesh_network_screen.dart';
+import '../screen/mesh/mesh_scan_screen.dart';
 import '../screen/onboarding/onboarding_screen.dart';
 import '../screen/pod/pod_scanner_screen.dart';
 import '../screen/splash/splash_screen.dart';
@@ -31,6 +33,9 @@ class Routes {
   static const String otpVerification = '/otp-verification';
   static const String keyProvision = '/key-provision';
   static const String keyProvisioning = '/key-provisioning';
+  static const String meshNetwork = '/mesh-network';
+  static const String meshScan = '/mesh-scan';
+  static const String meshChat = '/mesh-chat';
   static const String podScanner = '/pod-scanner';
 
   static Route<dynamic> generateRoutes(RouteSettings settings) {
@@ -48,7 +53,8 @@ class Routes {
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
       case ble:
-        return MaterialPageRoute(builder: (_) => const BleScreen());
+      case meshScan:
+        return MaterialPageRoute(builder: (_) => const MeshScanScreen());
       case otpSetup:
         return MaterialPageRoute(builder: (_) => const OtpSetupScreen());
       case otpSetupDisplay:
@@ -78,6 +84,16 @@ class Routes {
         return MaterialPageRoute(builder: (_) => const KeyProvisionScreen());
       case keyProvisioning:
         return MaterialPageRoute(builder: (_) => const KeyProvisioningScreen());
+      case meshNetwork:
+        return MaterialPageRoute(builder: (_) => const MeshScanScreen());
+      case meshChat:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => MeshChatScreen(
+            peerNodeUuid: args['peerNodeUuid'] as String,
+            initialPeerName: args['peerName'] as String?,
+          ),
+        );
       case podScanner:
         return MaterialPageRoute(builder: (_) => const PodScannerScreen());
       default:

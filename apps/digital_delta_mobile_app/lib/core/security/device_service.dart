@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import 'package:battery_plus/battery_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
@@ -16,6 +18,7 @@ import 'secure_storage_service.dart';
 class DeviceService {
   final SecureStorageService _secureStorage;
   final DeviceInfoPlugin _deviceInfo;
+  final Battery _battery = Battery();
 
   DeviceService(this._secureStorage, this._deviceInfo);
 
@@ -103,9 +106,12 @@ class DeviceService {
   /// Note: Requires battery_plus package (add if not present)
   /// For now, returns mock value. Implement with battery_plus in production.
   Future<int?> getBatteryLevel() async {
-    // TODO: Implement actual battery monitoring with battery_plus package
-    // For now, return mock value
-    return 85; // Mock: 85%
+    try {
+      final level = await _battery.batteryLevel;
+      return level.clamp(0, 100);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Checks if device is charging

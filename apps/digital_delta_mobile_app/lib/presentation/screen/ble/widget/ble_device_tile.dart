@@ -51,29 +51,62 @@ class BleDeviceTile extends StatelessWidget {
           ),
           SizedBox(width: 12.w),
 
-          // Name + ID + RSSI
+          // Name + live signal (no raw device IDs in UI)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  device.name,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextDefault,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        device.name,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryTextDefault,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (device.isDigitalDeltaNode) ...[
+                      SizedBox(width: 6.w),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.w,
+                          vertical: 2.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6.r),
+                          border: Border.all(
+                            color: Colors.deepPurple.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          'DD Node',
+                          style: TextStyle(
+                            fontSize: 9.sp,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.deepPurple,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                SizedBox(height: 2.h),
-                Text(
-                  _shortId,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    color: AppColors.secondaryTextDefault,
+                if (device.rssi != 0) ...[
+                  SizedBox(height: 4.h),
+                  Text(
+                    _rssiDescription(device.rssi),
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AppColors.secondaryTextDefault,
+                    ),
                   ),
-                ),
+                ],
                 SizedBox(height: 4.h),
                 _StatusBadge(state: device.connectionState),
               ],
@@ -100,11 +133,14 @@ class BleDeviceTile extends StatelessWidget {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  String get _shortId {
-    final id = device.id;
-    return id.length > 17
-        ? '${id.substring(0, 8)}…${id.substring(id.length - 5)}'
-        : id;
+  static String _rssiDescription(int rssi) {
+    final quality = switch (rssi) {
+      >= -55 => 'Excellent signal',
+      >= -70 => 'Good signal',
+      >= -85 => 'Fair signal',
+      _ => 'Weak signal',
+    };
+    return '$quality · $rssi dBm';
   }
 
   IconData get _deviceIcon {

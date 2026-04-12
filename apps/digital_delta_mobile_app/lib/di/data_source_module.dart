@@ -11,6 +11,8 @@ import '../data/datasource/local/source/connectivity_data_source.dart';
 import '../data/datasource/local/source/connectivity_data_source_impl.dart';
 import '../data/datasource/remote/api/auth_api.dart';
 import '../data/datasource/remote/api/auth_api_impl.dart';
+import '../data/service/ble_sync_service.dart';
+import '../data/service/sync_mesh_service.dart';
 import 'cache_module.dart';
 
 Future<void> setUpDataSourceModule() async {
@@ -35,4 +37,16 @@ Future<void> setUpDataSourceModule() async {
 
   // BLE
   getIt.registerLazySingleton<BleDataSource>(() => BleDataSourceImpl());
+
+  getIt.registerSingleton<SyncMeshService>(
+    await SyncMeshService.create(
+      deviceService: getIt(),
+      secureStorageService: getIt(),
+    ),
+  );
+
+  // BLE CRDT Sync Service (M2 + M3 integration)
+  getIt.registerLazySingleton<BleSyncService>(
+    () => BleSyncService(syncMeshService: getIt<SyncMeshService>()),
+  );
 }

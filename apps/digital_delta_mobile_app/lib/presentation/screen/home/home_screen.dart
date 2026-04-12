@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../connectivity/notifier/provider.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connectivity = ref.watch(connectivityNotifierProvider);
+    final syncInfo = connectivity.when(
+      initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
+      online: (_) => ('Online', Colors.green, Icons.cloud_done),
+      offline: () => ('Offline', Colors.orange, Icons.cloud_off),
+    );
+
     return Scaffold(
       backgroundColor: AppColors.colorBackground,
       appBar: AppBar(
@@ -17,24 +26,23 @@ class HomeScreen extends StatelessWidget {
           style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
         ),
         actions: [
-          // Sync Status Indicator
           Container(
             margin: EdgeInsets.only(right: 16.w),
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
+              color: syncInfo.$2.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20.r),
             ),
             child: Row(
               children: [
-                Icon(Icons.sync, size: 14.sp, color: Colors.green),
+                Icon(syncInfo.$3, size: 14.sp, color: syncInfo.$2),
                 SizedBox(width: 4.w),
                 Text(
-                  'Synced',
+                  syncInfo.$1,
                   style: TextStyle(
                     fontSize: 11.sp,
                     fontWeight: FontWeight.w600,
-                    color: Colors.green,
+                    color: syncInfo.$2,
                   ),
                 ),
               ],
@@ -160,10 +168,10 @@ class HomeScreen extends StatelessWidget {
               childAspectRatio: 1.1,
               children: [
                 _FeatureCard(
-                  title: 'BLE Scanner',
-                  icon: Icons.bluetooth_searching_rounded,
+                  title: 'Mesh & BLE',
+                  icon: Icons.hub_rounded,
                   color: Colors.indigo,
-                  onTap: () => Navigator.pushNamed(context, Routes.ble),
+                  onTap: () => Navigator.pushNamed(context, Routes.meshNetwork),
                 ),
                 _FeatureCard(
                   title: 'OTP Setup',
@@ -177,12 +185,6 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.deepOrange,
                   onTap: () =>
                       Navigator.pushNamed(context, Routes.keyProvision),
-                ),
-                _FeatureCard(
-                  title: 'Mesh Network',
-                  icon: Icons.hub_outlined,
-                  color: Colors.pink,
-                  onTap: () {},
                 ),
               ],
             ),
