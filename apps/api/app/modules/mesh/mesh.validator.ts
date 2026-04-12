@@ -1,5 +1,6 @@
-import vine from '@vinejs/vine'
-import type { Infer } from '@vinejs/vine/types'
+import vine from '@vinejs/vine';
+
+import type { Infer } from '@vinejs/vine/types';
 
 export const sendValidator = vine.compile(
   vine.object({
@@ -13,7 +14,7 @@ export const sendValidator = vine.compile(
     ] as const),
     encrypted_payload_b64: vine.string(),
     payload_hash: vine.string().fixedLength(64),
-    ttl_hours: vine.number().unsigned().max(72).optional(),
+    ttl_hours: vine.number().min(0).max(72).optional(),
   })
-)
-export type SendType = Infer<typeof sendValidator>
+);
+export type SendType = Infer<typeof sendValidator>;

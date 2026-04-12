@@ -1,5 +1,6 @@
-import vine from '@vinejs/vine'
-import type { Infer } from '@vinejs/vine/types'
+import vine from '@vinejs/vine';
+
+import type { Infer } from '@vinejs/vine/types';
 
 export const storeLocationValidator = vine.compile(
   vine.object({
@@ -15,17 +16,17 @@ export const storeLocationValidator = vine.compile(
     ] as const),
     latitude: vine.number().min(-90).max(90),
     longitude: vine.number().min(-180).max(180),
-    capacity: vine.number().unsigned().optional(),
+    capacity: vine.number().min(0).optional(),
     notes: vine.string().optional(),
   })
-)
-export type StoreLocationType = Infer<typeof storeLocationValidator>
+);
+export type StoreLocationType = Infer<typeof storeLocationValidator>;
 
 export const updateLocationStatusValidator = vine.compile(
   vine.object({
     is_flooded: vine.boolean().optional(),
     is_active: vine.boolean().optional(),
-    current_occupancy: vine.number().unsigned().optional(),
+    current_occupancy: vine.number().min(0).optional(),
   })
-)
-export type UpdateLocationStatusType = Infer<typeof updateLocationStatusValidator>
+);
+export type UpdateLocationStatusType = Infer<typeof updateLocationStatusValidator>;

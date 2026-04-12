@@ -10,7 +10,7 @@
     "dev": "node ace serve --hmr",
     "test": "node ace test",
     "lint": "eslint .",
-    "format": "prettier --write .",
+    "format": "prettier --write . && eslint . --fix",
     "typecheck": "tsc --noEmit"
   },
   "imports": {

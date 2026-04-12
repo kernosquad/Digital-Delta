@@ -35,12 +35,15 @@ export class AuthService {
       sameSite: 'lax',
       maxAge: 60 * 60 * 24,
     });
-    return response.ok({
-      token: token.token,
-      token_type: 'Bearer',
-      expires_in: 86400,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    });
+    return response.sendFormatted(
+      {
+        token: token.token,
+        token_type: 'Bearer',
+        expires_in: 86400,
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      },
+      'Login successful'
+    );
   }
 
   async register({ response }: HttpContext, payload: RegisterType) {

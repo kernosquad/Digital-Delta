@@ -1,5 +1,6 @@
-import vine from '@vinejs/vine'
-import type { Infer } from '@vinejs/vine/types'
+import vine from '@vinejs/vine';
+
+import type { Infer } from '@vinejs/vine/types';
 
 export const pushValidator = vine.compile(
   vine.object({
@@ -18,16 +19,16 @@ export const pushValidator = vine.compile(
       })
     ),
   })
-)
-export type PushType = Infer<typeof pushValidator>
+);
+export type PushType = Infer<typeof pushValidator>;
 
 export const resolveConflictValidator = vine.compile(
   vine.object({
     resolution: vine.enum(['a_wins', 'b_wins', 'merged', 'manual'] as const),
     resolved_value: vine.any().optional(),
   })
-)
-export type ResolveConflictType = Infer<typeof resolveConflictValidator>
+);
+export type ResolveConflictType = Infer<typeof resolveConflictValidator>;
 
 export const registerNodeValidator = vine.compile(
   vine.object({
@@ -35,5 +36,5 @@ export const registerNodeValidator = vine.compile(
     public_key: vine.string().optional(),
     node_type: vine.string().maxLength(50).optional(),
   })
-)
-export type RegisterNodeType = Infer<typeof registerNodeValidator>
+);
+export type RegisterNodeType = Infer<typeof registerNodeValidator>;

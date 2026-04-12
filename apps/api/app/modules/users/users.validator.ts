@@ -1,6 +1,6 @@
-import vine from '@vinejs/vine'
+import vine from '@vinejs/vine';
 
-import type { Infer } from '@vinejs/vine/types'
+import type { Infer } from '@vinejs/vine/types';
 
 export const updateRoleValidator = vine.compile(
   vine.object({
@@ -12,12 +12,12 @@ export const updateRoleValidator = vine.compile(
       'sync_admin',
     ] as const),
   })
-)
-export type UpdateRoleType = Infer<typeof updateRoleValidator>
+);
+export type UpdateRoleType = Infer<typeof updateRoleValidator>;
 
 export const updateStatusValidator = vine.compile(
   vine.object({
     status: vine.enum(['active', 'inactive', 'suspended'] as const),
   })
-)
-export type UpdateStatusType = Infer<typeof updateStatusValidator>
+);
+export type UpdateStatusType = Infer<typeof updateStatusValidator>;
