@@ -8,480 +8,221 @@ import '../../theme/color.dart';
 import 'notifier/operations_notifier.dart';
 import 'notifier/provider.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Module 2 — Offline-First Distributed Database & CRDT Sync
+// M2.1  CRDT Inventory Ledger (LWW-Register / G-Counter)
+// M2.2  Vector Clock Causal Ordering
+// M2.3  Conflict Detection & Resolution
+// M2.4  Delta Sync over BLE (simulated)
+// ─────────────────────────────────────────────────────────────────────────────
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final opsState = ref.watch(operationsNotifierProvider);
+    final opsState   = ref.watch(operationsNotifierProvider);
     final connectivity = ref.watch(connectivityNotifierProvider);
 
-    final isOnline = connectivity.maybeWhen(
-      online: (_) => true,
-      orElse: () => false,
+    final syncInfo = connectivity.when(
+      initial: () => ('Initializing', Colors.grey,  Icons.hourglass_empty),
+      online:  (_) => ('Online',       Colors.green, Icons.cloud_done),
+      offline: ()  => ('Offline',      Colors.orange, Icons.cloud_off),
     );
 
-    final syncLabel = connectivity.when(
-      initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
-      online: (_) => ('Online', Colors.green, Icons.cloud_done),
-      offline: () => ('Offline', Colors.orange, Icons.cloud_off),
-    );
-
-    return Scaffold(
-      backgroundColor: AppColors.colorBackground,
-      appBar: AppBar(
-        title: Text(
-          'Sync & CRDT Dashboard',
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          Container(
-            margin: EdgeInsets.only(right: 16.w),
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-            decoration: BoxDecoration(
-              color: syncLabel.$2.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(color: syncLabel.$2, width: 1.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(syncLabel.$3, size: 14.sp, color: syncLabel.$2),
-                SizedBox(width: 4.w),
-                Text(
-                  syncLabel.$1,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w600,
-                    color: syncLabel.$2,
-                  ),
-                ),
-              ],
-            ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: AppColors.colorBackground,
+        appBar: AppBar(
+          title: Text('M2 · CRDT Sync Engine',
+              style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700)),
+          actions: [
+            _SyncBadge(label: syncInfo.$1, color: syncInfo.$2, icon: syncInfo.$3),
+            SizedBox(width: 12.w),
+          ],
+          bottom: TabBar(
+            labelStyle: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
+            tabs: const [
+              Tab(text: 'Inventory'),
+              Tab(text: 'Clocks'),
+              Tab(text: 'Conflicts'),
+            ],
           ),
-        ],
-      ),
-      body: opsState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (msg) => Center(child: Text(msg)),
-        loaded: (snapshot) =>
-            _DashboardBody(snapshot: snapshot, isOnline: isOnline),
+        ),
+        body: opsState.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:   (msg) => _ErrorView(msg: msg),
+          loaded:  (snap) => _DashboardTabs(snapshot: snap),
+        ),
       ),
     );
   }
 }
 
-class _DashboardBody extends ConsumerWidget {
-  final OperationsSnapshot snapshot;
-  final bool isOnline;
+// ── Tab body ─────────────────────────────────────────────────────────────────
 
-  const _DashboardBody({required this.snapshot, required this.isOnline});
+class _DashboardTabs extends ConsumerWidget {
+  final OperationsSnapshot snapshot;
+  const _DashboardTabs({required this.snapshot});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summary = snapshot.summary;
     final notifier = ref.read(operationsNotifierProvider.notifier);
+    return TabBarView(
+      children: [
+        _InventoryTab(snapshot: snapshot, notifier: notifier),
+        _ClocksTab(snapshot: snapshot),
+        _ConflictsTab(snapshot: snapshot, notifier: notifier),
+      ],
+    );
+  }
+}
 
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 1 — Inventory Ledger (M2.1)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _InventoryTab extends StatelessWidget {
+  final OperationsSnapshot snapshot;
+  final OperationsNotifier notifier;
+  const _InventoryTab({required this.snapshot, required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = snapshot.summary;
     return RefreshIndicator(
       onRefresh: notifier.refresh,
       child: ListView(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 120.h),
         children: [
-          // ── Sync Status Summary ──
-          _SectionTitle(title: 'Sync Overview'),
-          SizedBox(height: 8.h),
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.pending_actions,
-                  value: '${summary.pendingOperations}',
-                  label: 'Pending Ops',
-                  color: Colors.orange,
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.check_circle_outline,
-                  value: '${summary.syncedOperations}',
-                  label: 'Synced Ops',
-                  color: Colors.green,
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.warning_amber_rounded,
-                  value: '${summary.openConflicts}',
-                  label: 'Conflicts',
-                  color: summary.openConflicts > 0
-                      ? AppColors.dangerSurfaceDefault
-                      : Colors.grey,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12.h),
+          // ── Quick stats ────────────────────────────────────────────────
+          Row(children: [
+            _StatChip(icon: Icons.pending_actions, value: '${summary.pendingOperations}',  label: 'Pending',  color: Colors.orange),
+            SizedBox(width: 8.w),
+            _StatChip(icon: Icons.check_circle_outline, value: '${summary.syncedOperations}', label: 'Synced',  color: Colors.green),
+            SizedBox(width: 8.w),
+            _StatChip(icon: Icons.warning_amber_rounded, value: '${summary.openConflicts}', label: 'Conflicts',
+                color: summary.openConflicts > 0 ? Colors.red : Colors.grey),
+          ]),
+          SizedBox(height: 14.h),
 
-          // ── Vector Clock ──
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(14.w),
-            decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
-              borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(color: Colors.indigo.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.schedule, size: 16.sp, color: Colors.indigo),
-                    SizedBox(width: 6.w),
-                    Text(
-                      'Vector Clock (Causal Order)',
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.indigo.shade900,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 6.h),
-                Text(
-                  snapshot.vectorClockHumanReadable,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    color: Colors.indigo.shade800,
-                  ),
-                ),
-                if (summary.lastSyncAt != null) ...[
-                  SizedBox(height: 4.h),
-                  Text(
-                    'Last sync: ${_timeAgo(summary.lastSyncAt!)}',
-                    style: TextStyle(
-                      fontSize: 11.sp,
-                      color: Colors.indigo.shade600,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          // ── Action bar ─────────────────────────────────────────────────
+          _ActionRow(children: [
+            _ActionBtn(icon: Icons.add_box_outlined,   label: 'Add Item',    color: Colors.teal,
+                onTap: () => _showAddDialog(context, notifier)),
+            _ActionBtn(icon: Icons.edit_outlined,      label: 'Delta',       color: Colors.blue,
+                onTap: snapshot.inventory.isEmpty ? null : notifier.createLocalDelta),
+            _ActionBtn(icon: Icons.sync,               label: 'Peer Sync',   color: Colors.deepPurple,
+                onTap: notifier.simulatePeerSync),
+            _ActionBtn(icon: Icons.flash_on_outlined,  label: 'Conflict!',   color: Colors.red,
+                onTap: snapshot.inventory.isEmpty ? null : notifier.injectConflict),
+          ]),
           SizedBox(height: 16.h),
 
-          // ── Action Buttons ──
-          Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.add_box_outlined,
-                  label: 'Add Item',
-                  color: Colors.teal,
-                  onPressed: () => _showAddInventoryDialog(context, notifier),
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.add_circle_outline,
-                  label: 'Create Delta',
-                  color: Colors.blue,
-                  onPressed: snapshot.inventory.isEmpty
-                      ? () {}
-                      : notifier.createLocalDelta,
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.sync,
-                  label: 'Sync',
-                  color: AppColors.primarySurfaceDefault,
-                  onPressed: notifier.triggerSync,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 20.h),
-
-          // ── CRDT Inventory Ledger (M2.1) ──
-          _SectionTitle(title: 'CRDT Inventory Ledger'),
+          // ── Section header ─────────────────────────────────────────────
+          _SectionHeader(title: 'CRDT Inventory Ledger',
+              subtitle: 'LWW-Register per field · ${snapshot.inventory.length} items'),
           SizedBox(height: 8.h),
+
           if (snapshot.inventory.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20.w),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 40.sp,
-                    color: Colors.grey.shade400,
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    'No inventory items yet',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    'Tap "Add Item" to create your first CRDT inventory entry',
-                    style: TextStyle(
-                      fontSize: 11.sp,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+            _EmptyCard(
+              icon: Icons.inventory_2_outlined,
+              title: 'No inventory yet',
+              subtitle: 'Tap "Add Item" or pull-to-refresh to seed demo data',
             )
           else
-            ...snapshot.inventory.map(
-              (item) => Padding(
-                padding: EdgeInsets.only(bottom: 8.h),
-                child: _InventoryLedgerCard(entry: item),
-              ),
-            ),
+            ...snapshot.inventory.map((item) => Padding(
+              padding: EdgeInsets.only(bottom: 8.h),
+              child: _InventoryCard(item: item),
+            )),
+
           SizedBox(height: 16.h),
 
-          // ── CRDT Operations Log (M2.2) ──
-          _SectionTitle(title: 'CRDT Operations Log'),
+          // ── Operations log ─────────────────────────────────────────────
+          _SectionHeader(title: 'CRDT Operations Log',
+              subtitle: 'M2.2 causal order · last ${snapshot.operations.length}'),
           SizedBox(height: 8.h),
+
           if (snapshot.operations.isEmpty)
             Padding(
               padding: EdgeInsets.only(bottom: 6.h),
-              child: Text(
-                'No CRDT operations recorded yet. Add inventory items and create deltas to start.',
-                style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade500),
-              ),
+              child: Text('No operations yet. Create a delta to start.',
+                  style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade500)),
             )
           else
-            ...snapshot.operations.map(
-              (op) => Padding(
-                padding: EdgeInsets.only(bottom: 6.h),
-                child: _CrdtOperationTile(
-                  snapshot: snapshot,
-                  op: op,
-                  localNode: summary.localNodeUuid,
-                ),
-              ),
-            ),
-          SizedBox(height: 16.h),
-
-          // ── Conflict Resolution (M2.3) ──
-          if (snapshot.conflicts.isNotEmpty) ...[
-            _SectionTitle(title: 'Conflict Resolution'),
-            SizedBox(height: 8.h),
-            ...snapshot.conflicts.map(
-              (conflict) => Padding(
-                padding: EdgeInsets.only(bottom: 8.h),
-                child: _ConflictCard(
-                  snapshot: snapshot,
-                  conflict: conflict,
-                  onResolve: (resolution) => notifier.resolveConflict(
-                    conflictId: conflict.id,
-                    resolution: resolution,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 16.h),
-          ],
-
-          // ── Mesh Quick Status ──
-          _SectionTitle(title: 'Mesh Network'),
-          SizedBox(height: 8.h),
-          Row(
-            children: [
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.hub_outlined,
-                  value: '${summary.nearbyNodes}',
-                  label: 'Nearby Nodes',
-                  color: Colors.teal,
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.cell_tower,
-                  value: '${summary.relayCapableNodes}',
-                  label: 'Relay Nodes',
-                  color: Colors.deepPurple,
-                ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _StatCard(
-                  icon: Icons.mail_outline,
-                  value: '${summary.queuedMessages}',
-                  label: 'Queued Msgs',
-                  color: Colors.pink,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 60.h),
+            ...snapshot.operations.map((op) => Padding(
+              padding: EdgeInsets.only(bottom: 6.h),
+              child: _OperationTile(op: op, localNode: snapshot.summary.localNodeUuid),
+            )),
         ],
       ),
     );
   }
 
-  static String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-
-  static void _showAddInventoryDialog(
-    BuildContext context,
-    OperationsNotifier notifier,
-  ) {
-    final nameController = TextEditingController();
-    final locationController = TextEditingController();
-    final baseQtyController = TextEditingController();
-    final currentQtyController = TextEditingController();
-    final slaController = TextEditingController(text: '24');
-    String selectedPriority = 'P1';
+  static void _showAddDialog(BuildContext ctx, OperationsNotifier notifier) {
+    final nameCtrl    = TextEditingController();
+    final locationCtrl = TextEditingController();
+    final baseQtyCtrl = TextEditingController();
+    final curQtyCtrl  = TextEditingController();
+    final slaCtrl     = TextEditingController(text: '24');
+    String prio = 'P1';
 
     showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+      context: ctx,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
           title: const Text('Add Inventory Item'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Name *',
-                    hintText: 'e.g. Antivenom Kits',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Location *',
-                    hintText: 'e.g. Sylhet District Hospital',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: baseQtyController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Base Qty *',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: currentQtyController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Current Qty *',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: selectedPriority,
-                        decoration: const InputDecoration(
-                          labelText: 'Priority',
-                        ),
-                        items: ['P0', 'P1', 'P2', 'P3']
-                            .map(
-                              (p) => DropdownMenuItem(value: p, child: Text(p)),
-                            )
-                            .toList(),
-                        onChanged: (v) =>
-                            setDialogState(() => selectedPriority = v ?? 'P1'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: slaController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'SLA (hours)',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Item Name *', hintText: 'e.g. Antivenom Kits')),
+              const SizedBox(height: 8),
+              TextField(controller: locationCtrl,
+                  decoration: const InputDecoration(labelText: 'Location *', hintText: 'e.g. Sylhet City Hub')),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(controller: baseQtyCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Base Qty *'))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: curQtyCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Current Qty *'))),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: DropdownButtonFormField<String>(
+                  value: prio,
+                  decoration: const InputDecoration(labelText: 'Priority'),
+                  items: ['P0', 'P1', 'P2', 'P3']
+                      .map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                  onChanged: (v) => setSt(() => prio = v ?? 'P1'),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: slaCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'SLA (hrs)'))),
+              ]),
+            ]),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
-                final name = nameController.text.trim();
-                final location = locationController.text.trim();
-                final baseQty = int.tryParse(baseQtyController.text.trim());
-                final currentQty = int.tryParse(
-                  currentQtyController.text.trim(),
-                );
-                final sla = int.tryParse(slaController.text.trim()) ?? 24;
-
-                if (name.isEmpty ||
-                    location.isEmpty ||
-                    baseQty == null ||
-                    currentQty == null) {
-                  return;
-                }
-
-                final priorityRank = switch (selectedPriority) {
-                  'P0' => 0,
-                  'P1' => 1,
-                  'P2' => 2,
-                  _ => 3,
-                };
-
-                final itemId = DateTime.now().millisecondsSinceEpoch.toString();
-
+                final name  = nameCtrl.text.trim();
+                final loc   = locationCtrl.text.trim();
+                final base  = int.tryParse(baseQtyCtrl.text.trim());
+                final cur   = int.tryParse(curQtyCtrl.text.trim());
+                final sla   = int.tryParse(slaCtrl.text.trim()) ?? 24;
+                if (name.isEmpty || loc.isEmpty || base == null || cur == null) return;
+                final rank = switch (prio) { 'P0' => 0, 'P1' => 1, 'P2' => 2, _ => 3 };
                 notifier.addInventoryItem(
-                  itemId: itemId,
-                  itemName: name,
-                  locationName: location,
-                  baseQuantity: baseQty,
-                  currentQuantity: currentQty,
-                  priorityClass: selectedPriority,
-                  priorityRank: priorityRank,
-                  slaHours: sla,
+                  itemId: DateTime.now().millisecondsSinceEpoch.toString(),
+                  itemName: name, locationName: loc,
+                  baseQuantity: base, currentQuantity: cur,
+                  priorityClass: prio, priorityRank: rank, slaHours: sla,
                 );
-
                 Navigator.pop(ctx);
               },
               child: const Text('Add'),
@@ -493,535 +234,655 @@ class _DashboardBody extends ConsumerWidget {
   }
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Reusable widgets
-// ───────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 2 — Vector Clocks (M2.2)
+// ═════════════════════════════════════════════════════════════════════════════
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle({required this.title});
+class _ClocksTab extends StatelessWidget {
+  final OperationsSnapshot snapshot;
+  const _ClocksTab({required this.snapshot});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryTextDefault,
+    final vc      = snapshot.summary.vectorClock;
+    final localId = snapshot.summary.localNodeUuid;
+    final ops     = snapshot.operations;
+
+    return ListView(
+      padding: EdgeInsets.all(16.w),
+      children: [
+        // ── What are vector clocks? ────────────────────────────────────
+        _InfoCard(
+          icon: Icons.account_tree_outlined,
+          color: Colors.indigo,
+          title: 'M2.2 · Causal Ordering',
+          body: 'Every mutation carries a vector clock. '
+              'Two concurrent edits (neither dominates) are detected as conflicts. '
+              'Causal history is preserved across disconnected devices.',
+        ),
+        SizedBox(height: 14.h),
+
+        // ── Merged vector clock ────────────────────────────────────────
+        _SectionHeader(title: 'Merged Vector Clock', subtitle: '${vc.length} node(s)'),
+        SizedBox(height: 8.h),
+        if (vc.isEmpty)
+          _EmptyCard(icon: Icons.schedule, title: 'No operations yet',
+              subtitle: 'Create deltas to populate the vector clock')
+        else
+          Container(
+            padding: EdgeInsets.all(14.w),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50,
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(color: Colors.indigo.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: vc.entries.map((e) {
+                final isLocal = e.key == localId;
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4.h),
+                  child: Row(children: [
+                    Container(
+                      width: 10.w, height: 10.w,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isLocal ? AppColors.primarySurfaceDefault : Colors.deepPurple,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(child: Text(
+                      isLocal ? 'This device' : e.key.length > 16 ? '${e.key.substring(0, 16)}…' : e.key,
+                      style: TextStyle(fontSize: 12.sp, color: Colors.indigo.shade800,
+                          fontWeight: isLocal ? FontWeight.w700 : FontWeight.normal),
+                    )),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 3.h),
+                      decoration: BoxDecoration(
+                        color: (isLocal ? AppColors.primarySurfaceDefault : Colors.deepPurple).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20.r),
+                      ),
+                      child: Text('t=${e.value}',
+                          style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700,
+                              color: isLocal ? AppColors.primarySurfaceDefault : Colors.deepPurple)),
+                    ),
+                  ]),
+                );
+              }).toList(),
+            ),
+          ),
+        SizedBox(height: 16.h),
+
+        // ── Per-operation breakdown ────────────────────────────────────
+        _SectionHeader(title: 'Operation Causal History', subtitle: '${ops.length} ops'),
+        SizedBox(height: 8.h),
+        if (ops.isEmpty)
+          Text('No operations logged yet.',
+              style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade500))
+        else
+          ...ops.map((op) {
+            final nodeVc = op.vectorClock;
+            final isLocal = op.syncNodeUuid == localId;
+            return Container(
+              margin: EdgeInsets.only(bottom: 6.h),
+              padding: EdgeInsets.all(10.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10.r),
+                border: Border.all(color: isLocal
+                    ? AppColors.primarySurfaceDefault.withValues(alpha: 0.3)
+                    : Colors.purple.withValues(alpha: 0.3)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(isLocal ? Icons.phone_android : Icons.devices_other,
+                      size: 14.sp, color: isLocal ? AppColors.primarySurfaceDefault : Colors.purple),
+                  SizedBox(width: 6.w),
+                  Expanded(child: Text(
+                    '${op.opType.toUpperCase()} · ${op.fieldName}',
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
+                  )),
+                  if (op.isConflicted)
+                    _Chip(label: 'CONFLICT', color: Colors.red),
+                ]),
+                SizedBox(height: 4.h),
+                Text(
+                  'VC: { ${nodeVc.entries.map((e) => '${e.key.length > 8 ? e.key.substring(0, 8) : e.key}: ${e.value}').join(', ')} }',
+                  style: TextStyle(fontSize: 10.sp, color: Colors.grey.shade600, fontFamily: 'monospace'),
+                ),
+              ]),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 3 — Conflict Resolution (M2.3)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _ConflictsTab extends ConsumerWidget {
+  final OperationsSnapshot snapshot;
+  final OperationsNotifier notifier;
+  const _ConflictsTab({required this.snapshot, required this.notifier});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open    = snapshot.conflicts.where((c) => c.resolution == null).toList();
+    final resolved = snapshot.conflicts.where((c) => c.resolution != null).toList();
+
+    return ListView(
+      padding: EdgeInsets.all(16.w),
+      children: [
+        _InfoCard(
+          icon: Icons.merge_type,
+          color: Colors.red,
+          title: 'M2.3 · Conflict Detection & Resolution',
+          body: 'When two devices edit the same field concurrently (neither VC dominates), '
+              'a conflict is surfaced here. Choose A-wins, B-wins, or Merge (max).',
+        ),
+        SizedBox(height: 14.h),
+
+        // ── Inject demo button ─────────────────────────────────────────
+        _ActionRow(children: [
+          _ActionBtn(icon: Icons.flash_on_outlined, label: 'Inject Conflict',
+              color: Colors.red, onTap: notifier.injectConflict),
+          _ActionBtn(icon: Icons.sync, label: 'Peer Sync',
+              color: Colors.deepPurple, onTap: notifier.simulatePeerSync),
+        ]),
+        SizedBox(height: 16.h),
+
+        // ── Open conflicts ─────────────────────────────────────────────
+        _SectionHeader(title: 'Open Conflicts', subtitle: '${open.length} unresolved'),
+        SizedBox(height: 8.h),
+        if (open.isEmpty)
+          _EmptyCard(icon: Icons.check_circle_outline, title: 'No open conflicts',
+              subtitle: 'Tap "Inject Conflict" to demo the resolution flow')
+        else
+          ...open.map((c) => Padding(
+            padding: EdgeInsets.only(bottom: 10.h),
+            child: _ConflictCard(conflict: c, snapshot: snapshot,
+                onResolve: (r) => notifier.resolveConflict(conflictId: c.id, resolution: r)),
+          )),
+
+        if (resolved.isNotEmpty) ...[
+          SizedBox(height: 16.h),
+          _SectionHeader(title: 'Resolved Conflicts', subtitle: '${resolved.length} resolved'),
+          SizedBox(height: 8.h),
+          ...resolved.map((c) => Padding(
+            padding: EdgeInsets.only(bottom: 6.h),
+            child: _ResolvedConflictTile(conflict: c),
+          )),
+        ],
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable Widget Library
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SyncBadge extends StatelessWidget {
+  final String label;
+  final Color  color;
+  final IconData icon;
+  const _SyncBadge({required this.label, required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(20.r),
+      border: Border.all(color: color, width: 1.2),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 13.sp, color: color),
+      SizedBox(width: 4.w),
+      Text(label, style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600, color: color)),
+    ]),
+  );
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  const _SectionHeader({required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      Text(title, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w700,
+          color: AppColors.primaryTextDefault)),
+      if (subtitle != null) ...[
+        SizedBox(width: 8.w),
+        Text(subtitle!, style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault)),
+      ],
+    ],
+  );
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color  color;
+  const _StatChip({required this.icon, required this.value, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: EdgeInsets.all(10.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Row(children: [
+        Icon(icon, size: 18.sp, color: color),
+        SizedBox(width: 6.w),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800, color: color)),
+          Text(label,  style: TextStyle(fontSize: 9.sp,  color: AppColors.secondaryTextDefault)),
+        ]),
+      ]),
+    ),
+  );
+}
+
+class _ActionRow extends StatelessWidget {
+  final List<Widget> children;
+  const _ActionRow({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: children.map((c) => Expanded(child: c)).toList(),
+  );
+}
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color  color;
+  final VoidCallback? onTap;
+  const _ActionBtn({required this.icon, required this.label, required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 3.w),
+      child: Material(
+        color: enabled ? color.withValues(alpha: 0.1) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10.r),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.h),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 18.sp, color: enabled ? color : Colors.grey.shade400),
+              SizedBox(height: 3.h),
+              Text(label, style: TextStyle(fontSize: 9.sp,
+                  fontWeight: FontWeight.w600,
+                  color: enabled ? color : Colors.grey.shade400),
+                  textAlign: TextAlign.center),
+            ]),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _InfoCard extends StatelessWidget {
   final IconData icon;
-  final String value;
+  final Color color;
+  final String title;
+  final String body;
+  const _InfoCard({required this.icon, required this.color, required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(14.w),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 20.sp, color: color),
+      SizedBox(width: 10.w),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: color)),
+        SizedBox(height: 4.h),
+        Text(body, style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault, height: 1.4)),
+      ])),
+    ]),
+  );
+}
+
+class _EmptyCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const _EmptyCard({required this.icon, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(24.w),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(children: [
+      Icon(icon, size: 40.sp, color: Colors.grey.shade400),
+      SizedBox(height: 8.h),
+      Text(title, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+      SizedBox(height: 4.h),
+      Text(subtitle, style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500), textAlign: TextAlign.center),
+    ]),
+  );
+}
+
+class _Chip extends StatelessWidget {
   final String label;
   final Color color;
+  const _Chip({required this.label, required this.color});
 
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.h),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 9.sp, fontWeight: FontWeight.w700, color: color)),
+  );
+}
+
+// ── Inventory card (M2.1) ──────────────────────────────────────────────────
+
+class _InventoryCard extends StatelessWidget {
+  final InventoryLedgerEntry item;
+  const _InventoryCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
+    final prio  = item.priorityClass;
+    final color = switch (prio) {
+      'P0' => Colors.red,
+      'P1' => Colors.orange,
+      'P2' => Colors.blue,
+      _    => Colors.grey,
+    };
+    final fill = item.baseQuantity > 0
+        ? (item.currentQuantity / item.baseQuantity).clamp(0.0, 1.0)
+        : 0.0;
+    final isLow = fill < 0.3;
+
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: isLow ? Colors.red.withValues(alpha: 0.4) : Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 22.sp, color: color),
-          SizedBox(height: 8.h),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryTextDefault,
-            ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          _Chip(label: prio, color: color),
+          SizedBox(width: 8.w),
+          Expanded(child: Text(item.itemName,
+              style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis)),
+          Text('${item.currentQuantity}/${item.baseQuantity}',
+              style: TextStyle(fontSize: 12.sp, color: isLow ? Colors.red : AppColors.secondaryTextDefault,
+                  fontWeight: FontWeight.w600)),
+        ]),
+        SizedBox(height: 6.h),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4.r),
+          child: LinearProgressIndicator(
+            value: fill,
+            minHeight: 6.h,
+            backgroundColor: Colors.grey.shade200,
+            color: isLow ? Colors.red : color,
           ),
+        ),
+        SizedBox(height: 6.h),
+        Row(children: [
+          Icon(Icons.location_on_outlined, size: 12.sp, color: AppColors.secondaryTextDefault),
+          SizedBox(width: 3.w),
+          Expanded(child: Text(item.locationName,
+              style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault),
+              overflow: TextOverflow.ellipsis)),
+          Icon(Icons.schedule, size: 12.sp, color: AppColors.secondaryTextDefault),
+          SizedBox(width: 3.w),
+          Text('SLA ${item.slaHours}h',
+              style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault)),
+        ]),
+        SizedBox(height: 4.h),
+        // Vector clock snippet
+        if (item.vectorClock.isNotEmpty)
           Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.sp,
-              color: AppColors.secondaryTextDefault,
-            ),
+            'VC: ${item.vectorClock.entries.map((e) => 't${e.value}').join('·')}',
+            style: TextStyle(fontSize: 9.sp, color: Colors.indigo.shade400, fontFamily: 'monospace'),
           ),
-        ],
-      ),
+      ]),
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
+// ── Operation tile (M2.2) ─────────────────────────────────────────────────
 
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
+class _OperationTile extends StatelessWidget {
+  final CrdtOperationEntry op;
+  final String localNode;
+  const _OperationTile({required this.op, required this.localNode});
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18.sp),
-      label: Text(label, style: TextStyle(fontSize: 13.sp)),
+    final isLocal  = op.syncNodeUuid == localNode;
+    final color    = switch (op.opType) {
+      'increment' || 'set' => Colors.green,
+      'decrement'          => Colors.orange,
+      'merge'              => Colors.blue,
+      _                    => Colors.grey,
+    };
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.r),
+        border: Border.all(color: op.isConflicted
+            ? Colors.red.withValues(alpha: 0.4)
+            : Colors.grey.shade200),
+      ),
+      child: Row(children: [
+        Container(
+          width: 34.w, height: 34.w,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: Icon(_opIcon(op.opType), size: 16.sp, color: color),
+        ),
+        SizedBox(width: 10.w),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text(op.opType.toUpperCase(),
+                style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700, color: color)),
+            SizedBox(width: 6.w),
+            Text(isLocal ? 'local' : op.syncNodeUuid.length > 12
+                ? op.syncNodeUuid.substring(0, 12) : op.syncNodeUuid,
+                style: TextStyle(fontSize: 10.sp, color: AppColors.secondaryTextDefault)),
+          ]),
+          Text('${op.oldValue ?? '?'} → ${op.newValue ?? '?'}',
+              style: TextStyle(fontSize: 11.sp, color: AppColors.primaryTextDefault)),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          if (op.isConflicted) _Chip(label: 'CONFLICT', color: Colors.red),
+          if (op.syncedAt != null) _Chip(label: 'SYNCED', color: Colors.green),
+          if (op.syncedAt == null && !op.isConflicted) _Chip(label: 'PENDING', color: Colors.orange),
+        ]),
+      ]),
+    );
+  }
+
+  static IconData _opIcon(String type) => switch (type) {
+    'increment' => Icons.add,
+    'decrement' => Icons.remove,
+    'set'       => Icons.edit,
+    'merge'     => Icons.merge_type,
+    _           => Icons.circle_outlined,
+  };
+}
+
+// ── Conflict card (M2.3) ──────────────────────────────────────────────────
+
+class _ConflictCard extends StatelessWidget {
+  final SyncConflictEntry conflict;
+  final OperationsSnapshot snapshot;
+  final void Function(String) onResolve;
+  const _ConflictCard({required this.conflict, required this.snapshot, required this.onResolve});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.warning_amber_rounded, size: 18.sp, color: Colors.red),
+          SizedBox(width: 8.w),
+          Expanded(child: Text(
+            'Conflict: ${conflict.fieldName} on entity #${conflict.entityId}',
+            style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.red.shade800),
+          )),
+        ]),
+        SizedBox(height: 10.h),
+        // Side-by-side value comparison
+        Row(children: [
+          Expanded(child: _ValueBox(
+            label: 'Value A  (local)',
+            value: '${conflict.valueA}',
+            color: AppColors.primarySurfaceDefault,
+          )),
+          SizedBox(width: 8.w),
+          Expanded(child: _ValueBox(
+            label: 'Value B  (peer)',
+            value: '${conflict.valueB}',
+            color: Colors.purple,
+          )),
+        ]),
+        SizedBox(height: 12.h),
+        // Resolution buttons
+        Row(children: [
+          _ResolveBtn(label: 'A Wins', color: AppColors.primarySurfaceDefault,
+              onTap: () => onResolve('a_wins')),
+          SizedBox(width: 8.w),
+          _ResolveBtn(label: 'B Wins', color: Colors.purple,
+              onTap: () => onResolve('b_wins')),
+          SizedBox(width: 8.w),
+          _ResolveBtn(label: 'Merge (max)', color: Colors.teal,
+              onTap: () => onResolve('merged')),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _ValueBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color  color;
+  const _ValueBox({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(10.w),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(8.r),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 10.sp, color: color, fontWeight: FontWeight.w600)),
+      SizedBox(height: 4.h),
+      Text(value, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w800, color: color)),
+    ]),
+  );
+}
+
+class _ResolveBtn extends StatelessWidget {
+  final String label;
+  final Color  color;
+  final VoidCallback onTap;
+  const _ResolveBtn({required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: ElevatedButton(
+      onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(vertical: 12.h),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
+        padding: EdgeInsets.symmetric(vertical: 8.h),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+        elevation: 0,
       ),
-    );
-  }
+      child: Text(label, style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w700)),
+    ),
+  );
 }
 
-class _InventoryLedgerCard extends StatelessWidget {
-  final InventoryLedgerEntry entry;
-  const _InventoryLedgerCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final fillColor = entry.isCritical
-        ? AppColors.dangerSurfaceDefault
-        : entry.fillRatio > 0.6
-        ? AppColors.primarySurfaceDefault
-        : AppColors.warningSurfaceDefault;
-
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: entry.isCritical
-            ? Border.all(color: AppColors.dangerSurfaceDefault, width: 1.5)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                decoration: BoxDecoration(
-                  color: fillColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6.r),
-                ),
-                child: Text(
-                  entry.priorityClass,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w700,
-                    color: fillColor,
-                  ),
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Text(
-                  entry.itemName,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextDefault,
-                  ),
-                ),
-              ),
-              Text(
-                '${entry.currentQuantity} / ${entry.baseQuantity}',
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w700,
-                  color: fillColor,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8.h),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4.r),
-            child: LinearProgressIndicator(
-              value: entry.fillRatio,
-              minHeight: 6.h,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(fillColor),
-            ),
-          ),
-          SizedBox(height: 6.h),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  entry.locationName,
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    color: AppColors.secondaryTextDefault,
-                  ),
-                ),
-              ),
-              Text(
-                inventoryPriorityDescription(
-                  entry.priorityClass,
-                  entry.slaHours,
-                ),
-                style: TextStyle(
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondaryTextDefault,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CrdtOperationTile extends StatelessWidget {
-  final OperationsSnapshot snapshot;
-  final CrdtOperationEntry op;
-  final String localNode;
-  const _CrdtOperationTile({
-    required this.snapshot,
-    required this.op,
-    required this.localNode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isLocal = op.syncNodeUuid == localNode;
-    final statusColor = op.isConflicted
-        ? AppColors.dangerSurfaceDefault
-        : op.syncedAt != null
-        ? AppColors.primarySurfaceDefault
-        : AppColors.warningSurfaceDefault;
-    final statusLabel = op.isConflicted
-        ? 'Conflicted'
-        : op.syncedAt != null
-        ? 'Synced'
-        : 'Pending';
-    final originLabel = snapshot.labelForNode(op.syncNodeUuid);
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36.w,
-            height: 36.w,
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              op.opType == 'increment'
-                  ? Icons.arrow_upward
-                  : op.opType == 'decrement'
-                  ? Icons.arrow_downward
-                  : op.opType == 'merge'
-                  ? Icons.merge_type
-                  : Icons.edit,
-              size: 18.sp,
-              color: statusColor,
-            ),
-          ),
-          SizedBox(width: 10.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${op.opType.toUpperCase()}  ${op.entityType}.${op.fieldName}',
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextDefault,
-                  ),
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  '${isLocal ? "This device" : originLabel}  ·  ${op.oldValue} → ${op.newValue}',
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    color: AppColors.secondaryTextDefault,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Text(
-              statusLabel,
-              style: TextStyle(
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w600,
-                color: statusColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConflictCard extends StatelessWidget {
-  final OperationsSnapshot snapshot;
+class _ResolvedConflictTile extends StatelessWidget {
   final SyncConflictEntry conflict;
-  final ValueChanged<String> onResolve;
-
-  const _ConflictCard({
-    required this.snapshot,
-    required this.conflict,
-    required this.onResolve,
-  });
+  const _ResolvedConflictTile({required this.conflict});
 
   @override
-  Widget build(BuildContext context) {
-    final isResolved = conflict.isResolved;
-    final entityTitle = conflict.entityType == 'inventory'
-        ? (snapshot.inventoryItemNameForEntity(conflict.entityId) ??
-            'Inventory item')
-        : conflict.entityType;
-
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: !isResolved
-            ? Border.all(color: AppColors.dangerSurfaceDefault, width: 1.5)
-            : Border.all(color: AppColors.primarySurfaceDefault, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                isResolved ? Icons.check_circle : Icons.warning_amber_rounded,
-                size: 20.sp,
-                color: isResolved
-                    ? AppColors.primarySurfaceDefault
-                    : AppColors.dangerSurfaceDefault,
-              ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Text(
-                  '$entityTitle · ${conflict.fieldName}',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextDefault,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10.h),
-          Row(
-            children: [
-              Expanded(
-                child: _ConflictValueBox(
-                  label: 'Value A',
-                  value: '${conflict.valueA}',
-                  color: Colors.blue,
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Text(
-                'vs',
-                style: TextStyle(fontSize: 12.sp, color: Colors.grey),
-              ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: _ConflictValueBox(
-                  label: 'Value B',
-                  value: '${conflict.valueB}',
-                  color: Colors.deepOrange,
-                ),
-              ),
-            ],
-          ),
-          if (isResolved) ...[
-            SizedBox(height: 8.h),
-            Container(
-              padding: EdgeInsets.all(8.w),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurfaceDefault.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.merge_type,
-                    size: 14.sp,
-                    color: AppColors.primarySurfaceDefault,
-                  ),
-                  SizedBox(width: 6.w),
-                  Text(
-                    'Resolved: ${conflict.resolution}  →  ${conflict.resolvedValue}',
-                    style: TextStyle(
-                      fontSize: 11.sp,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.primarySurfaceDefault,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            SizedBox(height: 10.h),
-            Row(
-              children: [
-                _ResolutionButton(
-                  label: 'Accept A',
-                  color: Colors.blue,
-                  onPressed: () => onResolve('a_wins'),
-                ),
-                SizedBox(width: 8.w),
-                _ResolutionButton(
-                  label: 'Accept B',
-                  color: Colors.deepOrange,
-                  onPressed: () => onResolve('b_wins'),
-                ),
-                SizedBox(width: 8.w),
-                _ResolutionButton(
-                  label: 'Merge',
-                  color: AppColors.primarySurfaceDefault,
-                  onPressed: () => onResolve('merged'),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(10.w),
+    decoration: BoxDecoration(
+      color: Colors.green.shade50,
+      borderRadius: BorderRadius.circular(8.r),
+      border: Border.all(color: Colors.green.shade200),
+    ),
+    child: Row(children: [
+      Icon(Icons.check_circle, size: 16.sp, color: Colors.green),
+      SizedBox(width: 8.w),
+      Expanded(child: Text(
+        'entity #${conflict.entityId} · ${conflict.fieldName} → ${conflict.resolvedValue}',
+        style: TextStyle(fontSize: 11.sp, color: Colors.green.shade800),
+      )),
+      _Chip(label: conflict.resolution?.toUpperCase() ?? 'RESOLVED', color: Colors.green),
+    ]),
+  );
 }
 
-class _ConflictValueBox extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _ConflictValueBox({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+class _ErrorView extends StatelessWidget {
+  final String msg;
+  const _ErrorView({required this.msg});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(10.w),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResolutionButton extends StatelessWidget {
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
-
-  const _ResolutionButton({
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: color),
-          foregroundColor: color,
-          padding: EdgeInsets.symmetric(vertical: 8.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: EdgeInsets.all(24.w),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.error_outline, size: 48.sp, color: Colors.red),
+        SizedBox(height: 12.h),
+        Text('CRDT engine error', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700, color: Colors.red)),
+        SizedBox(height: 8.h),
+        Text(msg, style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade600), textAlign: TextAlign.center),
+      ]),
+    ),
+  );
 }

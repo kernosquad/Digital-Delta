@@ -1611,4 +1611,216 @@ class SyncMeshService {
       createdAt: _parseDate(row['created_at'] as String) ?? DateTime.now(),
     );
   }
+
+  // ── M2 Demo Helpers ───────────────────────────────────────────────────────
+
+  /// Seed 6 realistic relief supply inventory items for demo (M2.1).
+  /// No-op if inventory already has entries.
+  void seedDemoInventory() {
+    final count = _database.select('SELECT COUNT(*) AS c FROM inventory_replicas').first['c'] as int? ?? 0;
+    if (count > 0) return;
+
+    final items = [
+      ('1001', 'Antivenom Kits',             'Sylhet City Hub',     100, 23,  'P0', 0, 2),
+      ('1002', 'Oral Rehydration Salts',      'Sunamganj Camp',      500, 127, 'P1', 1, 6),
+      ('1003', 'Water Purification Tablets',  'Companyganj',        2000, 843, 'P1', 1, 6),
+      ('1004', 'Emergency Ration Packs',      'Osmani Airport',     1000, 456, 'P2', 2, 24),
+      ('1005', 'Tarpaulin Sheets',            'Habiganj Medical',    200,  78, 'P2', 2, 24),
+      ('1006', 'Blanket Sets',                'Kanaighat Point',     300, 182, 'P3', 3, 72),
+    ];
+
+    for (final it in items) {
+      addInventoryItem(
+        itemId: it.$1,
+        itemName: it.$2,
+        locationName: it.$3,
+        baseQuantity: it.$4,
+        currentQuantity: it.$5,
+        priorityClass: it.$6,
+        priorityRank: it.$7,
+        slaHours: it.$8,
+      );
+    }
+  }
+
+  /// Inject a concurrent-edit conflict on the highest-priority item (M2.3 demo).
+  ///
+  /// Creates:
+  ///   • A local decrement operation  (−12 units)
+  ///   • A concurrent peer increment  (+18 units) from "device-fieldworker-demo"
+  ///
+  /// The two vector clocks are genuinely concurrent (neither dominates),
+  /// which triggers [importRemoteDeltas] conflict detection.
+  Future<void> injectDemoConflict() async {
+    final rows = _database.select(
+      'SELECT * FROM inventory_replicas ORDER BY priority_rank ASC, current_quantity ASC LIMIT 1',
+    );
+    if (rows.isEmpty) return;
+
+    final row = rows.first;
+    final itemId   = row['item_id'] as String;
+    final curQty   = (row['current_quantity'] as int?) ?? 50;
+    final now      = DateTime.now().toIso8601String();
+
+    // ── Local operation (decrement) ─────────────────────────────────────────
+    final localOpUuid = _uuid.v4();
+    final localVc     = _nextVectorClock(); // increments _localNodeUuid counter
+    final localNew    = max(0, curQty - 12);
+
+    _database.execute(
+      '''INSERT INTO crdt_operations (
+           operation_uuid, sync_node_uuid, op_type, entity_type, entity_id,
+           field_name, old_value, new_value, vector_clock, is_conflicted,
+           is_resolved, created_at, synced_at
+         ) VALUES (?, ?, 'decrement', 'inventory', ?, 'current_quantity', ?, ?, ?, 0, 0, ?, NULL)''',
+      [localOpUuid, _localNodeUuid, int.parse(itemId),
+       jsonEncode(curQty), jsonEncode(localNew), jsonEncode(localVc), now],
+    );
+
+    _database.execute(
+      'UPDATE inventory_replicas SET current_quantity=?, vector_clock=?, updated_at=?, last_operation_uuid=? WHERE item_id=?',
+      [localNew, jsonEncode(localVc), now, localOpUuid, itemId],
+    );
+
+    // ── Peer operation (concurrent increment) ──────────────────────────────
+    // Peer VC has NO overlap with localVc → genuinely concurrent
+    const peerNodeId = 'device-fieldworker-demo';
+    final peerVc     = <String, int>{peerNodeId: 1};
+    final peerOpUuid = _uuid.v4();
+    final peerNew    = curQty + 18;
+
+    await importRemoteDeltas(jsonEncode({
+      'sender_node': peerNodeId,
+      'deltas': [
+        {
+          'operation_uuid': peerOpUuid,
+          'sync_node_uuid': peerNodeId,
+          'op_type':        'increment',
+          'entity_type':    'inventory',
+          'entity_id':      int.parse(itemId),
+          'field_name':     'current_quantity',
+          'old_value':      jsonEncode(curQty),
+          'new_value':      jsonEncode(peerNew),
+          'vector_clock':   jsonEncode(peerVc),
+          'created_at':     now,
+        }
+      ],
+      'sent_at': now,
+    }));
+  }
+
+  /// Simulate receiving a BLE delta from a peer device (M2.2 / M2.4 demo).
+  ///
+  /// Creates a realistic-looking delta from "device-camp-commander" that
+  /// updates the second inventory item (non-conflicting, causally after local).
+  Future<void> simulatePeerSync() async {
+    final rows = _database.select(
+      'SELECT * FROM inventory_replicas ORDER BY priority_rank ASC, current_quantity DESC LIMIT 3',
+    );
+    if (rows.isEmpty) return;
+
+    const peerNode = 'device-camp-commander';
+    final now      = DateTime.now().toIso8601String();
+
+    // Build two incoming deltas from the peer (different items → no conflict)
+    final deltas = <Map<String, dynamic>>[];
+    for (int i = 0; i < min(2, rows.length); i++) {
+      final row    = rows[i < rows.length ? i : 0];
+      final itemId = row['item_id'] as String;
+      final curQty = (row['current_quantity'] as int?) ?? 100;
+      final delta  = i == 0 ? -8 : 15;
+      final newQty = max(0, curQty + delta);
+
+      // Peer VC: causally after the local state (include local VC + increment peer)
+      final baseVc = _computeVectorClock();
+      final peerVc = Map<String, int>.from(baseVc)..[peerNode] = (baseVc[peerNode] ?? 0) + 1 + i;
+
+      deltas.add({
+        'operation_uuid': _uuid.v4(),
+        'sync_node_uuid': peerNode,
+        'op_type':        delta < 0 ? 'decrement' : 'increment',
+        'entity_type':    'inventory',
+        'entity_id':      int.parse(itemId),
+        'field_name':     'current_quantity',
+        'old_value':      jsonEncode(curQty),
+        'new_value':      jsonEncode(newQty),
+        'vector_clock':   jsonEncode(peerVc),
+        'created_at':     now,
+      });
+    }
+
+    await importRemoteDeltas(jsonEncode({
+      'sender_node': peerNode,
+      'deltas':      deltas,
+      'sent_at':     now,
+    }));
+
+    _setMetadata('last_sync_at', now);
+  }
+
+  // ── M3 Demo Helpers ───────────────────────────────────────────────────────
+
+  /// Inject 3 simulated BLE peer nodes into the mesh topology (M3.2 demo).
+  Future<void> injectDemoMeshPeers() async {
+    final existingCount = _database.select(
+      'SELECT COUNT(*) AS c FROM sync_nodes WHERE node_uuid != ?', [_localNodeUuid]
+    ).first['c'] as int? ?? 0;
+    if (existingCount >= 3) return;
+
+    final peers = [
+      (uuid: 'mesh-relay-b-demo',  name: 'Relay Node B',     battery: 82.0, rssi: -62, relay: true),
+      (uuid: 'mesh-relay-c-demo',  name: 'Relay Node C',     battery: 71.0, rssi: -75, relay: true),
+      (uuid: 'mesh-target-d-demo', name: 'Target Camp D',    battery: 55.0, rssi: -95, relay: false),
+    ];
+
+    for (final p in peers) {
+      await registerRemoteNode(
+        nodeUuid:       p.uuid,
+        displayName:    p.name,
+        publicKey:      await _generateRemotePublicKey(),
+        batteryLevel:   p.battery,
+        signalStrength: p.rssi,
+        isConnected:    p.rssi > -80,
+      );
+    }
+  }
+
+  /// Queue a demo store-and-forward message from local → 'mesh-target-d-demo' (M3.1).
+  Future<void> queueDemoRelayMessage() async {
+    const targetUuid = 'mesh-target-d-demo';
+    const payload    = '{"type":"relief_request","item":"Antivenom","qty":5,"from":"field_op","priority":"P0"}';
+
+    final encryptedPayload = await () async {
+      try {
+        final rows = _database.select('SELECT public_key FROM sync_nodes WHERE node_uuid = ?', [targetUuid]);
+        if (rows.isEmpty) return payload;
+        return await KeyPairManager.encryptWithEd25519(
+          message: payload,
+          recipientPublicKeyBase64: rows.first['public_key'] as String,
+        );
+      } catch (_) {
+        return payload;
+      }
+    }();
+
+    final now       = DateTime.now();
+    final expiresAt = now.add(const Duration(hours: 24));
+
+    _database.execute(
+      '''INSERT OR IGNORE INTO mesh_messages (
+           message_uuid, sender_node_uuid, recipient_node_uuid, message_type,
+           encrypted_payload, payload_hash, ttl_hours, hop_count, max_hops,
+           is_delivered, created_at, expires_at, delivered_at
+         ) VALUES (?, ?, ?, 'crdt_delta', ?, ?, 24, 0, 3, 0, ?, ?, NULL)''',
+      [
+        'demo-msg-${_uuid.v4()}',
+        _localNodeUuid,
+        targetUuid,
+        encryptedPayload,
+        KeyPairManager.sha256Hash(payload),
+        now.toIso8601String(),
+        expiresAt.toIso8601String(),
+      ],
+    );
+  }
 }

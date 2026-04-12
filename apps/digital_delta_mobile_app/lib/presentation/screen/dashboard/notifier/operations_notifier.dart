@@ -13,6 +13,7 @@ class OperationsNotifier extends StateNotifier<OperationsUiState> {
 
   Future<void> _load() async {
     try {
+      _service.seedDemoInventory(); // auto-seed on first launch
       final snapshot = await _service.loadSnapshot();
       state = OperationsUiState.loaded(snapshot: snapshot);
     } catch (e) {
@@ -86,6 +87,38 @@ class OperationsNotifier extends StateNotifier<OperationsUiState> {
   /// Relay the next pending mesh message one hop forward (M3.1).
   Future<void> relayNextMessage() async {
     await _service.relayNextMessage();
+    await refresh();
+  }
+
+  // ── Demo Helpers ──────────────────────────────────────────────────────────
+
+  /// Seed 6 demo inventory items if the ledger is empty (M2.1).
+  Future<void> seedDemoData() async {
+    _service.seedDemoInventory();
+    await refresh();
+  }
+
+  /// Inject a concurrent-edit conflict for M2.3 demo.
+  Future<void> injectConflict() async {
+    await _service.injectDemoConflict();
+    await refresh();
+  }
+
+  /// Simulate receiving a BLE delta from a peer (M2.2 / M2.4 demo).
+  Future<void> simulatePeerSync() async {
+    await _service.simulatePeerSync();
+    await refresh();
+  }
+
+  /// Add 3 simulated peer nodes to the mesh topology (M3.2 demo).
+  Future<void> injectDemoPeers() async {
+    await _service.injectDemoMeshPeers();
+    await refresh();
+  }
+
+  /// Queue a demo relay message local → Target D (M3.1 demo).
+  Future<void> queueDemoMessage() async {
+    await _service.queueDemoRelayMessage();
     await refresh();
   }
 }

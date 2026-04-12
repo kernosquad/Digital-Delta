@@ -1,1390 +1,330 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/mesh/battery_mesh_throttler.dart';
 import '../../../di/cache_module.dart';
-import '../../../domain/enum/ble_connection_state.dart';
-import '../../../domain/model/ble/ble_device_model.dart';
 import '../../../domain/model/operations/operations_snapshot_model.dart';
-import '../../connectivity/notifier/provider.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
-import '../../util/toaster.dart';
-import '../ble/notifier/provider.dart';
-import '../ble/state/ble_ui_state.dart';
+import '../dashboard/notifier/operations_notifier.dart';
 import '../dashboard/notifier/provider.dart';
 import '../../../data/service/sync_mesh_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Messaging mode — how this device can be reached right now.
+// Module 3 — Ad-Hoc Mesh Network Protocol
+// M3.1  Store-and-Forward message relay (TTL + hop count + deduplication)
+// M3.2  Dual-Role Node Architecture  (Client ↔ Relay based on battery/signal)
+// M3.3  End-to-End encryption (relay nodes cannot read payloads)
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum _MsgMode {
-  /// BLE-connected, real-time messaging possible.
-  direct,
-
-  /// Not connected directly, but an active relay can forward the message
-  /// (M3.1 store-and-forward via intermediate BLE-connected relay node).
-  viaRelay,
-
-  /// Not reachable by any relay path right now; message will be stored and
-  /// delivered once ANY path becomes available (offline queue / future relay).
-  stored,
-
-  /// Non-DD device or completely unknown peer; offline messaging not possible.
-  unavailable,
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Immutable display model merging BLE scan data + mesh node data.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DeviceEntry {
-  final String id;
-  final String displayName;
-  final int rssi;
-  final BleDeviceConnectionState connState;
-  final bool isDigitalDeltaNode;
-
-  // from mesh node (may be null for non-DD BLE devices)
-  final MeshNodeEntry? meshNode;
-
-  // undelivered chat messages queued for this peer
-  final int pendingMessages;
-
-  // resolved messaging capability
-  final _MsgMode msgMode;
-
-  // if mode == viaRelay, name of the best relay
-  final String? relayName;
-
-  const _DeviceEntry({
-    required this.id,
-    required this.displayName,
-    required this.rssi,
-    required this.connState,
-    required this.isDigitalDeltaNode,
-    required this.msgMode,
-    this.meshNode,
-    this.pendingMessages = 0,
-    this.relayName,
-  });
-
-  bool get isConnected => connState == BleDeviceConnectionState.connected;
-  bool get isBusy =>
-      connState == BleDeviceConnectionState.connecting ||
-      connState == BleDeviceConnectionState.disconnecting;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: resolve messaging mode for a peer
-// ─────────────────────────────────────────────────────────────────────────────
-
-_MsgMode _resolveMsgMode(
-  BleDeviceModel bleDevice,
-  MeshNodeEntry? meshNode,
-  List<MeshNodeEntry> allMeshNodes,
-) {
-  if (!bleDevice.isDigitalDeltaNode && meshNode == null) {
-    return _MsgMode.unavailable;
-  }
-  if (bleDevice.connectionState == BleDeviceConnectionState.connected ||
-      meshNode?.isConnected == true) {
-    return _MsgMode.direct;
-  }
-  // look for a connected relay that can forward
-  final hasActiveRelay = allMeshNodes.any(
-    (n) => n.isRelay && n.isConnected && n.nodeUuid != meshNode?.nodeUuid,
-  );
-  return hasActiveRelay ? _MsgMode.viaRelay : _MsgMode.stored;
-}
-
-String? _findRelayName(
-  MeshNodeEntry? meshNode,
-  List<MeshNodeEntry> allMeshNodes,
-) {
-  for (final n in allMeshNodes) {
-    if (n.isRelay && n.isConnected && n.nodeUuid != meshNode?.nodeUuid) {
-      return n.displayName;
-    }
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
-
-class MeshScanScreen extends ConsumerStatefulWidget {
+class MeshScanScreen extends ConsumerWidget {
   const MeshScanScreen({super.key});
 
   @override
-  ConsumerState<MeshScanScreen> createState() => _MeshScanScreenState();
-}
-
-class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
-  Timer? _refreshTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestPermissions();
-      // periodically refresh mesh snapshot so relay/delivery status is live
-      _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-        if (mounted) ref.read(operationsNotifierProvider.notifier).refresh();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  // ── Permissions ─────────────────────────────────────────────────────────────
-
-  Future<void> _requestPermissions() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
-    final statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.locationWhenInUse,
-    ].request();
-    final denied = statuses.values.any(
-      (s) => s.isDenied || s.isPermanentlyDenied,
-    );
-    if (denied && mounted) {
-      Toaster.showWarning(
-        context,
-        'Bluetooth & Location permissions are required for mesh scanning.',
-      );
-    }
-  }
-
-  // ── Scan toggle ──────────────────────────────────────────────────────────────
-
-  void _toggleScan() {
-    final notifier = ref.read(bleNotifierProvider.notifier);
-    final isScanning = ref
-        .read(bleNotifierProvider)
-        .maybeWhen(scanning: (_) => true, orElse: () => false);
-    if (isScanning) {
-      notifier.stopScan();
-    } else {
-      notifier.startScan();
-    }
-  }
-
-  // ── Error listener ───────────────────────────────────────────────────────────
-
-  void _listenBleErrors() {
-    ref.listen<BleUiState>(bleNotifierProvider, (_, curr) {
-      curr.maybeWhen(
-        error: (msg) => Toaster.showError(context, msg),
-        orElse: () {},
-      );
-    });
-  }
-
-  // ── Build ────────────────────────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context) {
-    _listenBleErrors();
-
-    final bleState = ref.watch(bleNotifierProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
     final opsState = ref.watch(operationsNotifierProvider);
-    final connectivity = ref.watch(connectivityNotifierProvider);
 
-    final isOffline = connectivity.maybeWhen(
-      offline: () => true,
-      orElse: () => false,
-    );
-    final isScanning = bleState.maybeWhen(
-      scanning: (_) => true,
-      orElse: () => false,
-    );
-
-    return Scaffold(
-      backgroundColor: AppColors.colorBackground,
-      appBar: AppBar(
-        title: Text(
-          'Mesh & Devices',
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
-        ),
-        centerTitle: false,
-        actions: [
-          _ConnBadge(isOffline: isOffline, isScanning: isScanning),
-          SizedBox(width: 12.w),
-        ],
-      ),
-      body: opsState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (msg) => Center(child: Text(msg)),
-        loaded: (snapshot) => _Body(
-          snapshot: snapshot,
-          bleState: bleState,
-          isScanning: isScanning,
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'mesh_scan_fab',
-        onPressed: _toggleScan,
-        backgroundColor: isScanning
-            ? AppColors.dangerSurfaceDefault
-            : AppColors.primarySurfaceDefault,
-        icon: Icon(
-          isScanning ? Icons.stop_rounded : Icons.bluetooth_searching_rounded,
-          color: Colors.white,
-        ),
-        label: Text(
-          isScanning ? 'Stop Scan' : 'Scan Nearby',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Connectivity badge (top-right appbar)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ConnBadge extends StatelessWidget {
-  final bool isOffline;
-  final bool isScanning;
-  const _ConnBadge({required this.isOffline, required this.isScanning});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isScanning
-        ? AppColors.primarySurfaceDefault
-        : isOffline
-        ? Colors.orange
-        : Colors.green;
-    final label = isScanning
-        ? 'Scanning…'
-        : isOffline
-        ? 'Mesh Mode'
-        : 'Online';
-    final icon = isScanning
-        ? Icons.bluetooth_searching_rounded
-        : isOffline
-        ? Icons.bluetooth
-        : Icons.cloud_done;
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(color: color, width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13.sp, color: color),
-          SizedBox(width: 4.w),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main body — builds merged device entries from BLE + mesh data
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Body extends ConsumerWidget {
-  final OperationsSnapshot snapshot;
-  final BleUiState bleState;
-  final bool isScanning;
-
-  const _Body({
-    required this.snapshot,
-    required this.bleState,
-    required this.isScanning,
-  });
-
-  // Build pending chat message count per peer
-  Map<String, int> _pendingMsgCounts() {
-    final svc = getIt<SyncMeshService>();
-    final counts = <String, int>{};
-    for (final node in snapshot.nodes) {
-      final messages = svc.getChatMessages(node.nodeUuid);
-      final pending = messages.where((m) => m.isSent && !m.isDelivered).length;
-      if (pending > 0) counts[node.nodeUuid] = pending;
-    }
-    return counts;
-  }
-
-  // Merge BLE devices with mesh node data
-  List<_DeviceEntry> _buildEntries(List<BleDeviceModel> bleDevices) {
-    final meshByUuid = {for (final n in snapshot.nodes) n.nodeUuid: n};
-    // Some BLE device IDs may map to canonical UUIDs via
-    // consolidateBleNodeIntoCanonical — try to find by id as well.
-    final meshById = <String, MeshNodeEntry>{};
-    for (final n in snapshot.nodes) {
-      meshById[n.nodeUuid] = n;
-    }
-
-    final pendingCounts = _pendingMsgCounts();
-    final seenUuids = <String>{};
-    final entries = <_DeviceEntry>[];
-
-    // 1. BLE-visible devices (currently in scan results)
-    for (final ble in bleDevices) {
-      final meshNode = meshByUuid[ble.id] ?? meshById[ble.id];
-      final mode = _resolveMsgMode(ble, meshNode, snapshot.nodes);
-      final relayName = mode == _MsgMode.viaRelay
-          ? _findRelayName(meshNode, snapshot.nodes)
-          : null;
-      entries.add(
-        _DeviceEntry(
-          id: ble.id,
-          displayName: ble.name.isNotEmpty ? ble.name : 'Unknown Device',
-          rssi: ble.rssi,
-          connState: ble.connectionState,
-          isDigitalDeltaNode: ble.isDigitalDeltaNode,
-          meshNode: meshNode,
-          pendingMessages:
-              pendingCounts[ble.id] ??
-              pendingCounts[meshNode?.nodeUuid ?? ''] ??
-              0,
-          msgMode: mode,
-          relayName: relayName,
-        ),
-      );
-      seenUuids.add(ble.id);
-      if (meshNode != null) seenUuids.add(meshNode.nodeUuid);
-    }
-
-    // 2. Known mesh peers NOT visible in current BLE scan
-    //    (they are out-of-range but we have message history or relay can reach them)
-    for (final node in snapshot.nodes) {
-      if (seenUuids.contains(node.nodeUuid)) continue;
-      if (node.nodeUuid == snapshot.summary.localNodeUuid) continue;
-
-      final hasActiveRelay = snapshot.nodes.any(
-        (n) => n.isRelay && n.isConnected && n.nodeUuid != node.nodeUuid,
-      );
-      final mode = node.isConnected
-          ? _MsgMode.direct
-          : hasActiveRelay
-          ? _MsgMode.viaRelay
-          : _MsgMode.stored;
-      final relayName = mode == _MsgMode.viaRelay
-          ? _findRelayName(node, snapshot.nodes)
-          : null;
-
-      entries.add(
-        _DeviceEntry(
-          id: node.nodeUuid,
-          displayName: node.displayName,
-          rssi: node.signalStrength,
-          connState: node.isConnected
-              ? BleDeviceConnectionState.connected
-              : BleDeviceConnectionState.disconnected,
-          isDigitalDeltaNode: true,
-          meshNode: node,
-          pendingMessages: pendingCounts[node.nodeUuid] ?? 0,
-          msgMode: mode,
-          relayName: relayName,
-        ),
-      );
-    }
-
-    // Sort: connected first, then relay-reachable, then stored, then unavailable
-    entries.sort((a, b) {
-      final order = {
-        _MsgMode.direct: 0,
-        _MsgMode.viaRelay: 1,
-        _MsgMode.stored: 2,
-        _MsgMode.unavailable: 3,
-      };
-      final cmp = order[a.msgMode]!.compareTo(order[b.msgMode]!);
-      if (cmp != 0) return cmp;
-      return b.rssi.compareTo(a.rssi);
-    });
-
-    return entries;
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bleDevices = bleState.maybeWhen(
-      scanning: (d) => d,
-      idle: (d) => d,
-      orElse: () => <BleDeviceModel>[],
-    );
-
-    final entries = _buildEntries(bleDevices);
-    final summary = snapshot.summary;
-
-    return RefreshIndicator(
-      onRefresh: ref.read(operationsNotifierProvider.notifier).refresh,
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 120.h),
-        children: [
-          // Scan progress bar
-          if (isScanning)
-            Padding(
-              padding: EdgeInsets.only(bottom: 12.h),
-              child: LinearProgressIndicator(
-                color: AppColors.primarySurfaceDefault,
-                backgroundColor: AppColors.primarySurfaceDefault.withValues(
-                  alpha: 0.15,
-                ),
-              ),
-            ),
-
-          // ── Local node identity card (M3.2 dual-role) ──────────────────
-          _LocalNodeCard(summary: summary),
-          SizedBox(height: 14.h),
-
-          // ── Stats row ───────────────────────────────────────────────────
-          _StatsRow(
-            nearby: summary.nearbyNodes,
-            relays: summary.relayCapableNodes,
-            queued: summary.queuedMessages,
-            conflicts: summary.openConflicts,
-          ),
-          SizedBox(height: 14.h),
-
-          // ── M8.4 Battery-Aware Mesh Throttle ────────────────────────────
-          const _BatteryThrottlePanel(),
-          SizedBox(height: 20.h),
-
-          // ── Devices section ─────────────────────────────────────────────
-          _SectionHeader(
-            title: 'Devices & Peers',
-            trailing: '${entries.length} found',
-          ),
-          SizedBox(height: 8.h),
-
-          if (entries.isEmpty)
-            _EmptyDevices(isScanning: isScanning)
-          else
-            ...entries.map(
-              (e) => Padding(
-                padding: EdgeInsets.only(bottom: 10.h),
-                child: _DeviceTile(entry: e),
-              ),
-            ),
-
-          // ── Message queue summary ───────────────────────────────────────
-          if (snapshot.messages.isNotEmpty) ...[
-            SizedBox(height: 20.h),
-            _SectionHeader(
-              title: 'Store-and-Forward Queue',
-              trailing: '${summary.queuedMessages} pending',
-            ),
-            SizedBox(height: 8.h),
-            ...snapshot.messages
-                .where((m) => !m.isDelivered)
-                .take(5)
-                .map(
-                  (msg) => Padding(
-                    padding: EdgeInsets.only(bottom: 6.h),
-                    child: _QueuedMessageTile(msg: msg, snapshot: snapshot),
-                  ),
-                ),
-          ],
-
-          // ── Relay hop log ────────────────────────────────────────────────
-          if (snapshot.relayLogs.isNotEmpty) ...[
-            SizedBox(height: 20.h),
-            _SectionHeader(
-              title: 'Relay Hop Log',
-              trailing: '${snapshot.relayLogs.length} hops',
-            ),
-            SizedBox(height: 8.h),
-            ...snapshot.relayLogs
-                .take(5)
-                .map(
-                  (log) => Padding(
-                    padding: EdgeInsets.only(bottom: 6.h),
-                    child: _RelayHopTile(log: log, snapshot: snapshot),
-                  ),
-                ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String? trailing;
-  const _SectionHeader({required this.title, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 15.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryTextDefault,
-            ),
-          ),
-        ),
-        if (trailing != null)
-          Text(
-            trailing!,
-            style: TextStyle(
-              fontSize: 11.sp,
-              color: AppColors.secondaryTextDefault,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ── Local node card ────────────────────────────────────────────────────────────
-
-class _LocalNodeCard extends StatelessWidget {
-  final OperationsSummary summary;
-  const _LocalNodeCard({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final isRelay = summary.localNodeRelay;
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isRelay
-              ? [Colors.deepPurple.shade700, Colors.deepPurple.shade400]
-              : [Colors.teal.shade700, Colors.teal.shade400],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16.r),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isRelay ? Icons.cell_tower : Icons.phone_android,
-            size: 32.sp,
-            color: Colors.white,
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  summary.localNodeName,
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  isRelay
-                      ? 'RELAY NODE  ·  This Device'
-                      : 'CLIENT NODE  ·  This Device',
-                  style: TextStyle(
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                SizedBox(height: 3.h),
-                Text(
-                  summary.localRoleReason,
-                  style: TextStyle(fontSize: 10.sp, color: Colors.white60),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            child: Text(
-              isRelay ? 'Relay' : 'Client',
-              style: TextStyle(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stats row ──────────────────────────────────────────────────────────────────
-
-class _StatsRow extends StatelessWidget {
-  final int nearby;
-  final int relays;
-  final int queued;
-  final int conflicts;
-  const _StatsRow({
-    required this.nearby,
-    required this.relays,
-    required this.queued,
-    required this.conflicts,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _Stat(
-          icon: Icons.hub,
-          value: '$nearby',
-          label: 'Nearby',
-          color: Colors.teal,
-        ),
-        SizedBox(width: 8.w),
-        _Stat(
-          icon: Icons.cell_tower,
-          value: '$relays',
-          label: 'Relays',
-          color: Colors.deepPurple,
-        ),
-        SizedBox(width: 8.w),
-        _Stat(
-          icon: Icons.forward_to_inbox,
-          value: '$queued',
-          label: 'Queued',
-          color: Colors.pink,
-        ),
-        SizedBox(width: 8.w),
-        _Stat(
-          icon: Icons.warning_amber_rounded,
-          value: '$conflicts',
-          label: 'Conflicts',
-          color: conflicts > 0 ? Colors.orange : Colors.grey,
-        ),
-      ],
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
-  const _Stat({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 10.h),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 18.sp, color: color),
-            SizedBox(height: 3.h),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 15.sp,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9.sp,
-                color: AppColors.secondaryTextDefault,
-              ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0D1B2A),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0D1B2A),
+          foregroundColor: Colors.white,
+          title: Text('M3 · Mesh Network',
+              style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.chat_bubble_outline, size: 22.sp, color: Colors.white70),
+              tooltip: 'Mesh Chat',
+              onPressed: () {
+                final svc     = getIt<SyncMeshService>();
+                final peers   = svc.getKnownPeers();
+                if (peers.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No peers yet — inject demo peers first')),
+                  );
+                  return;
+                }
+                Navigator.pushNamed(context, Routes.meshChat, arguments: {
+                  'peerNodeUuid': peers.first.nodeUuid,
+                  'peerName':     peers.first.displayName,
+                });
+              },
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Empty state ────────────────────────────────────────────────────────────────
-
-class _EmptyDevices extends StatelessWidget {
-  final bool isScanning;
-  const _EmptyDevices({required this.isScanning});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 32.h),
-        child: Column(
-          children: [
-            Icon(
-              isScanning
-                  ? Icons.bluetooth_searching_rounded
-                  : Icons.bluetooth_disabled_rounded,
-              size: 56.sp,
-              color: isScanning
-                  ? AppColors.primarySurfaceDefault
-                  : AppColors.secondaryTextDefault,
-            ),
-            SizedBox(height: 12.h),
-            Text(
-              isScanning ? 'Scanning for nearby devices…' : 'No devices found',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primaryTextDefault,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Text(
-              isScanning
-                  ? 'Digital Delta peers appear automatically'
-                  : 'Tap "Scan Nearby" to discover mesh nodes',
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: AppColors.secondaryTextDefault,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Device tile — main combined BLE + mesh node card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DeviceTile extends ConsumerWidget {
-  final _DeviceEntry entry;
-  // ignore: unused_element
-  const _DeviceTile({super.key, required this.entry});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final meshNode = entry.meshNode;
-
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: _borderColor,
-          width: entry.isConnected ? 1.5 : 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Row 1: icon + name + badges + RSSI + connect btn ──
-          Row(
-            children: [
-              // Device icon
-              Container(
-                width: 44.w,
-                height: 44.w,
-                decoration: BoxDecoration(
-                  color: _iconBgColor,
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: Icon(_deviceIcon, color: _iconColor, size: 22.sp),
-              ),
-              SizedBox(width: 10.w),
-              // Name + badges
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            entry.displayName,
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryTextDefault,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        // DD Node badge
-                        if (entry.isDigitalDeltaNode) ...[
-                          SizedBox(width: 4.w),
-                          _Chip(label: 'DD', color: Colors.deepPurple),
-                        ],
-                      ],
-                    ),
-                    SizedBox(height: 3.h),
-                    // Relay / Client role + signal
-                    Row(
-                      children: [
-                        if (meshNode != null)
-                          _Chip(
-                            label: meshNode.isRelay ? 'RELAY' : 'CLIENT',
-                            color: meshNode.isRelay
-                                ? Colors.deepPurple
-                                : Colors.teal,
-                          ),
-                        if (meshNode != null) SizedBox(width: 6.w),
-                        if (entry.rssi != 0)
-                          Text(
-                            '${entry.rssi} dBm',
-                            style: TextStyle(
-                              fontSize: 10.sp,
-                              color: AppColors.secondaryTextDefault,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // RSSI bars
-              if (entry.rssi != 0) ...[
-                _RssiBars(rssi: entry.rssi),
-                SizedBox(width: 10.w),
-              ],
-              // Connect / Disconnect button
-              _ConnBtn(entry: entry, ref: ref),
+          bottom: TabBar(
+            indicatorColor: AppColors.primarySurfaceDefault,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white38,
+            labelStyle: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
+            tabs: const [
+              Tab(text: 'Topology'),
+              Tab(text: 'Relay Queue'),
+              Tab(text: 'Encryption'),
             ],
           ),
-
-          // ── Row 2: battery + signal bars (if mesh node known) ──────────
-          if (meshNode != null) ...[
-            SizedBox(height: 10.h),
-            Row(
-              children: [
-                Expanded(
-                  child: _BarRow(
-                    label: 'Battery ${meshNode.batteryLevel.toInt()}%',
-                    value: meshNode.batteryLevel / 100,
-                    color: meshNode.batteryLevel > 30
-                        ? Colors.green
-                        : Colors.red,
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: _BarRow(
-                    label: 'Signal ${_signalLabel(meshNode.signalStrength)}',
-                    value:
-                        ((meshNode.signalStrength + 100).clamp(0, 100)) / 100,
-                    color: _signalColor(meshNode.signalStrength),
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          // ── Row 3: offline messaging capability badge ────────────────────
-          SizedBox(height: 10.h),
-          _OfflineBadge(
-            mode: entry.msgMode,
-            relayName: entry.relayName,
-            proximityMeters: meshNode?.proximityMeters,
-          ),
-
-          // ── Row 4: pending messages + message button ─────────────────────
-          if (entry.isDigitalDeltaNode) ...[
-            SizedBox(height: 10.h),
-            Row(
-              children: [
-                if (entry.pendingMessages > 0) ...[
-                  Icon(Icons.schedule_send, size: 13.sp, color: Colors.orange),
-                  SizedBox(width: 4.w),
-                  Text(
-                    '${entry.pendingMessages} message${entry.pendingMessages > 1 ? "s" : ""} queued',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      color: Colors.orange.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const Spacer(),
-                ] else
-                  const Spacer(),
-                // Message button
-                SizedBox(
-                  height: 32.h,
-                  child: OutlinedButton.icon(
-                    onPressed: entry.msgMode != _MsgMode.unavailable
-                        ? () => Navigator.of(context).pushNamed(
-                            Routes.meshChat,
-                            arguments: {
-                              'peerNodeUuid': entry.id,
-                              'peerName': entry.displayName,
-                            },
-                          )
-                        : null,
-                    icon: Icon(Icons.chat_bubble_outline, size: 13.sp),
-                    label: Text(
-                      entry.isConnected
-                          ? 'Message'
-                          : entry.msgMode == _MsgMode.viaRelay
-                          ? 'Message (relay)'
-                          : 'Message (stored)',
-                      style: TextStyle(fontSize: 11.sp),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primarySurfaceDefault,
-                      side: BorderSide(
-                        color: AppColors.primarySurfaceDefault.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12.w,
-                        vertical: 4.h,
-                      ),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          // ── Row 5: E2E encryption notice ─────────────────────────────────
-          if (entry.isDigitalDeltaNode && meshNode != null) ...[
-            SizedBox(height: 8.h),
-            Row(
-              children: [
-                Icon(
-                  Icons.lock_outline,
-                  size: 11.sp,
-                  color: AppColors.secondaryTextDefault,
-                ),
-                SizedBox(width: 4.w),
-                Expanded(
-                  child: Text(
-                    'E2E encrypted — relay nodes cannot read content (M3.3)',
-                    style: TextStyle(
-                      fontSize: 9.sp,
-                      color: AppColors.secondaryTextDefault,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Icon helpers ─────────────────────────────────────────────────────────────
-
-  IconData get _deviceIcon {
-    switch (entry.connState) {
-      case BleDeviceConnectionState.connected:
-        return Icons.bluetooth_connected_rounded;
-      case BleDeviceConnectionState.connecting:
-      case BleDeviceConnectionState.disconnecting:
-        return Icons.bluetooth_searching_rounded;
-      case BleDeviceConnectionState.disconnected:
-        return entry.isDigitalDeltaNode
-            ? Icons.cell_tower
-            : Icons.bluetooth_rounded;
-    }
-  }
-
-  Color get _iconColor {
-    switch (entry.msgMode) {
-      case _MsgMode.direct:
-        return AppColors.primarySurfaceDefault;
-      case _MsgMode.viaRelay:
-        return Colors.orange;
-      case _MsgMode.stored:
-        return Colors.amber.shade700;
-      case _MsgMode.unavailable:
-        return AppColors.secondaryTextDefault;
-    }
-  }
-
-  Color get _iconBgColor => _iconColor.withValues(alpha: 0.12);
-
-  Color get _borderColor {
-    switch (entry.msgMode) {
-      case _MsgMode.direct:
-        return AppColors.primarySurfaceDefault.withValues(alpha: 0.4);
-      case _MsgMode.viaRelay:
-        return Colors.orange.withValues(alpha: 0.4);
-      case _MsgMode.stored:
-        return Colors.amber.withValues(alpha: 0.4);
-      case _MsgMode.unavailable:
-        return Colors.grey.shade200;
-    }
-  }
-
-  static String _signalLabel(int rssi) => switch (rssi) {
-    >= -55 => 'Excellent',
-    >= -70 => 'Good',
-    >= -85 => 'Fair',
-    _ => 'Weak',
-  };
-
-  static Color _signalColor(int rssi) => switch (rssi) {
-    >= -55 => Colors.green,
-    >= -70 => Colors.lightGreen,
-    >= -85 => Colors.orange,
-    _ => Colors.red,
-  };
-}
-
-// ── Offline capability badge ───────────────────────────────────────────────────
-
-class _OfflineBadge extends StatelessWidget {
-  final _MsgMode mode;
-  final String? relayName;
-  final int? proximityMeters;
-
-  const _OfflineBadge({
-    required this.mode,
-    this.relayName,
-    this.proximityMeters,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final (icon, label, color) = switch (mode) {
-      _MsgMode.direct => (
-        Icons.bluetooth_connected,
-        'Direct · BLE Connected',
-        Colors.green,
-      ),
-      _MsgMode.viaRelay => (
-        Icons.cell_tower,
-        relayName != null
-            ? 'Offline · Via ${relayName!} (relay)'
-            : 'Offline · Via relay',
-        Colors.orange,
-      ),
-      _MsgMode.stored => (
-        Icons.inbox_outlined,
-        'Offline · Stored — delivers when in range',
-        Colors.amber.shade700,
-      ),
-      _MsgMode.unavailable => (
-        Icons.bluetooth_disabled,
-        'Not a mesh node — offline messaging unavailable',
-        Colors.grey,
-      ),
-    };
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 12.sp, color: color),
-          SizedBox(width: 6.w),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
-            ),
-          ),
-          if (proximityMeters != null && proximityMeters! > 0)
-            Text(
-              '~${proximityMeters}m',
-              style: TextStyle(
-                fontSize: 9.sp,
-                color: AppColors.secondaryTextDefault,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Connect button ─────────────────────────────────────────────────────────────
-
-class _ConnBtn extends StatelessWidget {
-  final _DeviceEntry entry;
-  final WidgetRef ref;
-  const _ConnBtn({required this.entry, required this.ref});
-
-  @override
-  Widget build(BuildContext context) {
-    if (entry.isBusy) {
-      return SizedBox(
-        width: 18.w,
-        height: 18.w,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
-      );
-    }
-
-    // Out-of-range known peers (not visible in BLE scan) don't show connect button
-    if (entry.rssi == 0 && !entry.isConnected) {
-      return const SizedBox.shrink();
-    }
-
-    if (entry.isConnected) {
-      return TextButton(
-        onPressed: () =>
-            ref.read(bleNotifierProvider.notifier).disconnect(entry.id),
-        style: TextButton.styleFrom(
-          foregroundColor: AppColors.dangerSurfaceDefault,
-          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        child: Text(
-          'Disconnect',
-          style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600),
-        ),
-      );
-    }
-
-    return TextButton(
-      onPressed: () => ref.read(bleNotifierProvider.notifier).connect(entry.id),
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.primarySurfaceDefault,
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      child: Text(
-        'Connect',
-        style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-// ── Small chip badge ───────────────────────────────────────────────────────────
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Chip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.5.h),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(5.r),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 8.5.sp,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: 0.4,
+        body: opsState.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+          error:   (msg) => Center(child: Text(msg, style: const TextStyle(color: Colors.red))),
+          loaded:  (snap) => _MeshTabs(snapshot: snap),
         ),
       ),
     );
   }
 }
 
-// ── RSSI signal bars ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _RssiBars extends StatelessWidget {
-  final int rssi;
-  const _RssiBars({required this.rssi});
-
-  int get _bars {
-    if (rssi >= -60) return 4;
-    if (rssi >= -70) return 3;
-    if (rssi >= -80) return 2;
-    return 1;
-  }
+class _MeshTabs extends ConsumerWidget {
+  final OperationsSnapshot snapshot;
+  const _MeshTabs({required this.snapshot});
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(4, (i) {
-        final active = i < _bars;
-        return Container(
-          width: 4.w,
-          height: (6 + i * 4).h,
-          margin: EdgeInsets.only(left: 2.w),
-          decoration: BoxDecoration(
-            color: active
-                ? AppColors.primarySurfaceDefault
-                : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(2.r),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-// ── Progress bar row ───────────────────────────────────────────────────────────
-
-class _BarRow extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-  const _BarRow({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(operationsNotifierProvider.notifier);
+    return TabBarView(
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 9.sp,
-            color: AppColors.secondaryTextDefault,
-          ),
+        _TopologyTab(snapshot: snapshot, notifier: notifier),
+        _RelayQueueTab(snapshot: snapshot, notifier: notifier),
+        _EncryptionTab(snapshot: snapshot, notifier: notifier),
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 1 — Mesh Topology (M3.2 dual-role)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _TopologyTab extends StatelessWidget {
+  final OperationsSnapshot snapshot;
+  final OperationsNotifier notifier;
+  const _TopologyTab({required this.snapshot, required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final nodes      = snapshot.nodes;
+    final summary    = snapshot.summary;
+    final localNode  = summary.localNodeUuid;
+    final peers      = nodes.where((n) => n.nodeUuid != localNode).toList();
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 120.h),
+      children: [
+        // ── M8.4 Battery Throttle Panel ───────────────────────────────
+        const _BatteryThrottlePanel(),
+        SizedBox(height: 14.h),
+
+        // ── Quick stats ────────────────────────────────────────────────
+        Row(children: [
+          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Peers',   color: Colors.teal),
+          SizedBox(width: 8.w),
+          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Relays',  color: Colors.deepPurple),
+          SizedBox(width: 8.w),
+          _MeshStat(icon: Icons.mail_outline,    value: '${summary.queuedMessages}', label: 'Queued',  color: Colors.pink),
+          SizedBox(width: 8.w),
+          _MeshStat(icon: Icons.warning_outline, value: '${summary.openConflicts}',  label: 'Conflicts', color: Colors.orange),
+        ]),
+        SizedBox(height: 14.h),
+
+        // ── Demo action row ────────────────────────────────────────────
+        _DemoActionRow(children: [
+          _DemoBtn(icon: Icons.group_add_outlined,  label: 'Add Peers',    color: Colors.teal,        onTap: notifier.injectDemoPeers),
+          _DemoBtn(icon: Icons.send_outlined,       label: 'Queue Msg',    color: Colors.blue,        onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,             label: 'Relay Hop',    color: Colors.deepPurple,  onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.sync,                label: 'Refresh',      color: Colors.grey,        onTap: notifier.refresh),
+        ]),
+        SizedBox(height: 16.h),
+
+        // ── Local node identity ────────────────────────────────────────
+        _LocalNodeCard(summary: summary),
+        SizedBox(height: 12.h),
+
+        // ── Remote peers ───────────────────────────────────────────────
+        _SectionHeader(title: 'Mesh Peers', subtitle: '${peers.length} known'),
+        SizedBox(height: 8.h),
+        if (peers.isEmpty)
+          _EmptyMesh(onInject: notifier.injectDemoPeers)
+        else
+          ...peers.map((n) => Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: _NodeTile(node: n),
+          )),
+
+        // ── Relay hop log ──────────────────────────────────────────────
+        if (snapshot.relayLogs.isNotEmpty) ...[
+          SizedBox(height: 16.h),
+          _SectionHeader(title: 'Relay Hop Log', subtitle: '${snapshot.relayLogs.length} hops'),
+          SizedBox(height: 8.h),
+          ...snapshot.relayLogs.take(6).map((log) => Padding(
+            padding: EdgeInsets.only(bottom: 6.h),
+            child: _HopTile(log: log, snapshot: snapshot),
+          )),
+        ],
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 2 — Store-and-Forward Queue (M3.1)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _RelayQueueTab extends StatelessWidget {
+  final OperationsSnapshot snapshot;
+  final OperationsNotifier notifier;
+  const _RelayQueueTab({required this.snapshot, required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final msgs     = snapshot.messages;
+    final pending  = msgs.where((m) => !m.isDelivered).toList();
+    final delivered = msgs.where((m) => m.isDelivered).toList();
+
+    return ListView(
+      padding: EdgeInsets.all(16.w),
+      children: [
+        // M3.1 info card
+        _InfoCard(
+          icon: Icons.swap_horiz,
+          color: Colors.blue,
+          title: 'M3.1 · Store-and-Forward Relay',
+          body: 'Messages survive intermediate node failures. Each message has a TTL (24 h), '
+              'max 3–10 hops, and is deduplicated by UUID. Tap "Queue Msg" then "Relay Hop" to demo.',
         ),
-        SizedBox(height: 3.h),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3.r),
-          child: LinearProgressIndicator(
-            value: value.clamp(0.0, 1.0),
-            minHeight: 5.h,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation(color),
+        SizedBox(height: 14.h),
+
+        // Action row
+        _DemoActionRow(children: [
+          _DemoBtn(icon: Icons.send_outlined,  label: 'Queue Msg',  color: Colors.blue,       onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,        label: 'Relay Hop',  color: Colors.deepPurple, onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.sync,           label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
+        ]),
+        SizedBox(height: 16.h),
+
+        // Pending messages
+        _SectionHeader(title: 'Pending Queue', subtitle: '${pending.length} msgs'),
+        SizedBox(height: 8.h),
+        if (pending.isEmpty)
+          _EmptyQueueCard()
+        else
+          ...pending.map((m) => Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: _MessageTile(msg: m, snapshot: snapshot),
+          )),
+
+        if (delivered.isNotEmpty) ...[
+          SizedBox(height: 16.h),
+          _SectionHeader(title: 'Delivered', subtitle: '${delivered.length} msgs'),
+          SizedBox(height: 8.h),
+          ...delivered.take(4).map((m) => Padding(
+            padding: EdgeInsets.only(bottom: 6.h),
+            child: _MessageTile(msg: m, snapshot: snapshot),
+          )),
+        ],
+      ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 3 — E2E Encryption (M3.3)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _EncryptionTab extends StatelessWidget {
+  final OperationsSnapshot snapshot;
+  final OperationsNotifier notifier;
+  const _EncryptionTab({required this.snapshot, required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final msgs = snapshot.messages;
+
+    return ListView(
+      padding: EdgeInsets.all(16.w),
+      children: [
+        _InfoCard(
+          icon: Icons.lock_outlined,
+          color: Colors.green,
+          title: 'M3.3 · End-to-End Encryption',
+          body: 'All payloads are encrypted with the recipient\'s Ed25519 public key. '
+              'Relay nodes (B, C) forward the ciphertext without being able to read it. '
+              'Only the intended recipient can decrypt using their private key.',
+        ),
+        SizedBox(height: 14.h),
+
+        // Encryption proof: node key table
+        _SectionHeader(title: 'Node Key Registry', subtitle: '${snapshot.nodes.length} keys'),
+        SizedBox(height: 8.h),
+        if (snapshot.nodes.isEmpty)
+          _InfoCard(icon: Icons.key_off, color: Colors.grey,
+              title: 'No keys yet',
+              body: 'Inject demo peers to populate the key registry')
+        else
+          ...snapshot.nodes.map((n) => Padding(
+            padding: EdgeInsets.only(bottom: 6.h),
+            child: _KeyCard(node: n, isLocal: n.nodeUuid == snapshot.summary.localNodeUuid),
+          )),
+
+        SizedBox(height: 16.h),
+
+        // Encrypted payload inspector
+        _SectionHeader(title: 'Payload Inspector', subtitle: '${msgs.length} messages'),
+        SizedBox(height: 8.h),
+        if (msgs.isEmpty)
+          _InfoCard(icon: Icons.mail_lock_outlined, color: Colors.grey,
+              title: 'No messages yet',
+              body: 'Queue a message to see the encrypted payload here')
+        else
+          ...msgs.take(4).map((m) => Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: _PayloadInspector(msg: m, snapshot: snapshot),
+          )),
+
+        SizedBox(height: 16.h),
+
+        // Cryptographic standards compliance
+        Container(
+          padding: EdgeInsets.all(14.w),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D1B2A),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
           ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Cryptographic Standards (C5)',
+                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+            SizedBox(height: 8.h),
+            ...[
+              ('Key Algorithm', 'Ed25519 (256-bit)'),
+              ('Payload Encryption', 'AES-256-GCM (via Ed25519 KEM)'),
+              ('Hash Function', 'SHA-256'),
+              ('Banned', 'MD5, SHA-1, DES — never used'),
+              ('Transport', 'TLS 1.3 for server channels'),
+            ].map((e) => Padding(
+              padding: EdgeInsets.only(bottom: 4.h),
+              child: Row(children: [
+                Icon(Icons.check_circle, size: 12.sp, color: Colors.green),
+                SizedBox(width: 6.w),
+                Text('${e.$1}: ', style: TextStyle(fontSize: 11.sp, color: Colors.white54)),
+                Expanded(child: Text(e.$2, style: TextStyle(fontSize: 11.sp, color: Colors.white))),
+              ]),
+            )),
+          ]),
         ),
       ],
     );
   }
 }
 
-// ── Queued message tile ────────────────────────────────────────────────────────
-
-class _QueuedMessageTile extends StatelessWidget {
-  final MeshMessageEntry msg;
-  final OperationsSnapshot snapshot;
-  const _QueuedMessageTile({required this.msg, required this.snapshot});
-
-  @override
-  Widget build(BuildContext context) {
-    final remaining = msg.ttlRemaining;
-    final ttlLabel = remaining.isNegative
-        ? 'Expired'
-        : remaining.inHours >= 1
-        ? '${remaining.inHours}h left'
-        : '${remaining.inMinutes}m left';
-
-    return Container(
-      padding: EdgeInsets.all(10.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.forward_to_inbox, size: 16.sp, color: Colors.pink),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${snapshot.labelForNode(msg.senderNodeUuid)} → ${snapshot.labelForNode(msg.recipientNodeUuid)}',
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextDefault,
-                  ),
-                ),
-                Text(
-                  '${msg.messageType}  ·  ${msg.hopCount}/${msg.maxHops} hops  ·  TTL: $ttlLabel',
-                  style: TextStyle(
-                    fontSize: 10.sp,
-                    color: AppColors.secondaryTextDefault,
-                  ),
-                ),
-                Text(
-                  msg.payloadPreview,
-                  style: TextStyle(
-                    fontSize: 9.sp,
-                    fontFamily: 'monospace',
-                    color: AppColors.secondaryTextDefault,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── M8.4 Battery-aware mesh throttle panel ─────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// M8.4 Battery Throttle Panel (collapsible)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _BatteryThrottlePanel extends StatefulWidget {
   const _BatteryThrottlePanel();
@@ -1401,44 +341,38 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
   @override
   void initState() {
     super.initState();
-    _throttler.addListener(_onThrottleUpdate);
+    _throttler.addListener(_rebuild);
     _throttler.startMonitoring();
   }
 
   @override
   void dispose() {
-    _throttler.removeListener(_onThrottleUpdate);
+    _throttler.removeListener(_rebuild);
     _throttler.stopMonitoring();
     _throttler.dispose();
     super.dispose();
   }
 
-  void _onThrottleUpdate() {
-    if (mounted) setState(() {});
-  }
+  void _rebuild() { if (mounted) setState(() {}); }
 
   Future<void> _runSim() async {
     setState(() => _simStats = null);
     try {
-      final stats = await _throttler.runSimulation();
-      if (mounted) setState(() => _simStats = stats);
+      final s = await _throttler.runSimulation();
+      if (mounted) setState(() => _simStats = s);
     } catch (_) {}
   }
 
-  Color _factorColor(double f) {
-    if (f >= 0.8) return Colors.green;
-    if (f >= 0.4) return Colors.orange;
-    return Colors.red;
-  }
+  Color _factorColor(double f) =>
+      f >= 0.8 ? Colors.green : f >= 0.4 ? Colors.orange : Colors.red;
 
   @override
   Widget build(BuildContext context) {
-    final factor = _throttler.throttleFactor;
+    final factor       = _throttler.throttleFactor;
     final intervalSecs = _throttler.currentIntervalSecs;
-    final battery = _throttler.batteryLevel;
-    final isCharging = _throttler.isCharging;
-    final rules = _throttler.log.isNotEmpty ? _throttler.log.last.activeRules : <String>[];
-    final isSim = _throttler.isSimulating;
+    final battery      = _throttler.batteryLevel;
+    final rules        = _throttler.log.isNotEmpty ? _throttler.log.last.activeRules : <String>[];
+    final isSim        = _throttler.isSimulating;
 
     return Container(
       decoration: BoxDecoration(
@@ -1449,188 +383,95 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-              child: Row(
-                children: [
-                  Icon(Icons.battery_charging_full, size: 16.sp, color: _factorColor(factor)),
-                  SizedBox(width: 8.w),
-                  Text(
-                    'M8.4 · BLE Throttle',
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+              child: Row(children: [
+                Icon(Icons.battery_charging_full, size: 15.sp, color: _factorColor(factor)),
+                SizedBox(width: 8.w),
+                Text('M8.4 · BLE Throttle',
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+                const Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                  decoration: BoxDecoration(
+                    color: _factorColor(factor).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20.r),
                   ),
-                  const Spacer(),
-                  // Factor pill
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                    decoration: BoxDecoration(
-                      color: _factorColor(factor).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20.r),
-                    ),
-                    child: Text(
-                      '×${factor.toStringAsFixed(2)}  ${intervalSecs}s',
-                      style: TextStyle(
-                        fontSize: 10.sp,
-                        fontWeight: FontWeight.w600,
-                        color: _factorColor(factor),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 6.w),
-                  Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18.sp,
-                    color: Colors.white54,
-                  ),
-                ],
-              ),
+                  child: Text('×${factor.toStringAsFixed(2)}  ${intervalSecs}s',
+                      style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w600,
+                          color: _factorColor(factor))),
+                ),
+                SizedBox(width: 6.w),
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18.sp, color: Colors.white54),
+              ]),
             ),
           ),
-
           if (_expanded) ...[
             Divider(height: 1, color: Colors.white12),
             Padding(
               padding: EdgeInsets.all(12.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Battery + state row
-                  Row(
-                    children: [
-                      _ThrottleStat(
-                        label: 'Battery',
-                        value: '$battery%${isCharging ? ' ⚡' : ''}',
-                        color: battery < 30 ? Colors.red : Colors.green,
-                      ),
-                      SizedBox(width: 16.w),
-                      _ThrottleStat(
-                        label: 'Interval',
-                        value: '${intervalSecs}s',
-                        color: AppColors.primarySurfaceDefault,
-                      ),
-                      SizedBox(width: 16.w),
-                      _ThrottleStat(
-                        label: 'Stationary',
-                        value: _throttler.isStationary ? 'Yes' : 'No',
-                        color: _throttler.isStationary ? Colors.orange : Colors.green,
-                      ),
-                      SizedBox(width: 16.w),
-                      _ThrottleStat(
-                        label: 'Near Node',
-                        value: _throttler.nearKnownNode ? 'Yes' : 'No',
-                        color: _throttler.nearKnownNode ? Colors.blue : Colors.white54,
-                      ),
-                    ],
-                  ),
-
-                  // Active rules
-                  if (rules.isNotEmpty) ...[
-                    SizedBox(height: 10.h),
-                    Wrap(
-                      spacing: 6.w,
-                      runSpacing: 4.h,
-                      children: rules.map((r) => Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20.r),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          r,
-                          style: TextStyle(fontSize: 9.sp, color: Colors.orange),
-                        ),
-                      )).toList(),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  _ThrottleStat('Battery', '$battery%${_throttler.isCharging ? ' ⚡' : ''}',
+                      battery < 30 ? Colors.red : Colors.green),
+                  SizedBox(width: 16.w),
+                  _ThrottleStat('Interval', '${intervalSecs}s', AppColors.primarySurfaceDefault),
+                  SizedBox(width: 16.w),
+                  _ThrottleStat('Stationary', _throttler.isStationary ? 'Yes' : 'No',
+                      _throttler.isStationary ? Colors.orange : Colors.green),
+                ]),
+                if (rules.isNotEmpty) ...[
+                  SizedBox(height: 8.h),
+                  Wrap(spacing: 6.w, runSpacing: 4.h, children: rules.map((r) => Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                     ),
-                  ],
-
-                  SizedBox(height: 12.h),
-
-                  // Simulation controls
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isSim ? null : _runSim,
-                          icon: isSim
-                              ? SizedBox(
-                                  width: 12.w,
-                                  height: 12.h,
-                                  child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : Icon(Icons.play_arrow, size: 14.sp),
-                          label: Text(
-                            isSim ? 'Simulating 10 min…' : 'Run 10-min Simulation',
-                            style: TextStyle(fontSize: 11.sp),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primarySurfaceDefault,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 8.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_throttler.isStationary || _throttler.nearKnownNode) ...[
-                        SizedBox(width: 8.w),
-                        IconButton(
-                          tooltip: 'Reset state overrides',
-                          onPressed: () {
-                            _throttler.setStationary(false);
-                            _throttler.setNearKnownNode(false);
-                          },
-                          icon: Icon(Icons.refresh, size: 18.sp, color: Colors.white54),
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  // Simulation results
-                  if (_simStats != null) ...[
-                    SizedBox(height: 12.h),
-                    Container(
-                      padding: EdgeInsets.all(10.w),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Simulation Results (10 min)',
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          Row(
-                            children: [
-                              _SimStat(label: 'Scans saved', value: '${_simStats!.totalScansSaved}'),
-                              _SimStat(label: 'Avg throttle', value: '×${_simStats!.avgThrottleFactor.toStringAsFixed(2)}'),
-                              _SimStat(label: 'Energy saved', value: '${_simStats!.energySavedMj.toStringAsFixed(1)} mJ'),
-                              _SimStat(label: 'Events', value: '${_simStats!.totalEvents}'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    child: Text(r, style: TextStyle(fontSize: 9.sp, color: Colors.orange)),
+                  )).toList()),
                 ],
-              ),
+                SizedBox(height: 10.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isSim ? null : _runSim,
+                    icon: isSim
+                        ? SizedBox(width: 12.w, height: 12.h,
+                            child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Icon(Icons.play_arrow, size: 14.sp),
+                    label: Text(isSim ? 'Simulating…' : 'Run 10-min Simulation',
+                        style: TextStyle(fontSize: 11.sp)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primarySurfaceDefault,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 8.h),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                    ),
+                  ),
+                ),
+                if (_simStats != null) ...[
+                  SizedBox(height: 10.h),
+                  Container(
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(children: [
+                      _SimStat('Scans saved',   '${_simStats!.totalScansSaved}'),
+                      _SimStat('Avg ×factor',   '×${_simStats!.avgThrottleFactor.toStringAsFixed(2)}'),
+                      _SimStat('Energy saved',  '${_simStats!.energySavedMj.toStringAsFixed(1)} mJ'),
+                    ]),
+                  ),
+                ],
+              ]),
             ),
           ],
         ],
@@ -1643,78 +484,558 @@ class _ThrottleStat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _ThrottleStat({required this.label, required this.value, required this.color});
+  const _ThrottleStat(this.label, this.value, this.color);
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
-        SizedBox(height: 2.h),
-        Text(value, style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700, color: color)),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
+    SizedBox(height: 2.h),
+    Text(value, style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700, color: color)),
+  ]);
 }
 
 class _SimStat extends StatelessWidget {
   final String label;
   final String value;
-  const _SimStat({required this.label, required this.value});
+  const _SimStat(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) => Expanded(child: Column(children: [
+    Text(value, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+    Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38), textAlign: TextAlign.center),
+  ]));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  const _SectionHeader({required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      Text(title, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+      if (subtitle != null) ...[
+        SizedBox(width: 8.w),
+        Text(subtitle!, style: TextStyle(fontSize: 11.sp, color: Colors.white38)),
+      ],
+    ],
+  );
+}
+
+class _MeshStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color  color;
+  const _MeshStat({required this.icon, required this.value, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(children: [
+        Icon(icon, size: 18.sp, color: color),
+        SizedBox(height: 4.h),
+        Text(value, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800, color: color)),
+        Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
+      ]),
+    ),
+  );
+}
+
+class _DemoActionRow extends StatelessWidget {
+  final List<Widget> children;
+  const _DemoActionRow({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: children.map((c) => Expanded(child: c)).toList(),
+  );
+}
+
+class _DemoBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color  color;
+  final VoidCallback? onTap;
+  const _DemoBtn({required this.icon, required this.label, required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(horizontal: 3.w),
+    child: Material(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(10.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 18.sp, color: color),
+            SizedBox(height: 3.h),
+            Text(label, style: TextStyle(fontSize: 9.sp, fontWeight: FontWeight.w600, color: color),
+                textAlign: TextAlign.center),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+class _InfoCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+  const _InfoCard({required this.icon, required this.color, required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(14.w),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.07),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 20.sp, color: color),
+      SizedBox(width: 10.w),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: color)),
+        SizedBox(height: 4.h),
+        Text(body, style: TextStyle(fontSize: 11.sp, color: Colors.white54, height: 1.4)),
+      ])),
+    ]),
+  );
+}
+
+// ── Local node identity card ──────────────────────────────────────────────
+
+class _LocalNodeCard extends StatelessWidget {
+  final OperationsSummary summary;
+  const _LocalNodeCard({required this.summary});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(value, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.green)),
-          Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38), textAlign: TextAlign.center),
-        ],
+    final isRelay = summary.localNodeRelay;
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isRelay
+              ? [Colors.deepPurple.shade900, Colors.deepPurple.shade700]
+              : [const Color(0xFF0A3D62), const Color(0xFF1A5276)],
+        ),
+        borderRadius: BorderRadius.circular(14.r),
       ),
+      child: Row(children: [
+        CircleAvatar(
+          radius: 24.r,
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
+              size: 22.sp, color: Colors.white),
+        ),
+        SizedBox(width: 12.w),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(summary.localNodeName,
+              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+          SizedBox(height: 2.h),
+          Text(isRelay ? 'Role: RELAY NODE' : 'Role: CLIENT NODE',
+              style: TextStyle(fontSize: 11.sp, color: Colors.white70)),
+          SizedBox(height: 2.h),
+          Text(summary.localRoleReason,
+              style: TextStyle(fontSize: 10.sp, color: Colors.white54), maxLines: 2, overflow: TextOverflow.ellipsis),
+        ])),
+        _RoleBadge(isRelay: isRelay),
+      ]),
     );
   }
 }
 
-// ── Relay hop tile ─────────────────────────────────────────────────────────────
+class _RoleBadge extends StatelessWidget {
+  final bool isRelay;
+  const _RoleBadge({required this.isRelay});
 
-class _RelayHopTile extends StatelessWidget {
-  final MeshRelayHopEntry log;
-  final OperationsSnapshot snapshot;
-  const _RelayHopTile({required this.log, required this.snapshot});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+    decoration: BoxDecoration(
+      color: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.3),
+      borderRadius: BorderRadius.circular(20.r),
+      border: Border.all(color: isRelay ? Colors.purple : Colors.blue),
+    ),
+    child: Text(isRelay ? 'RELAY' : 'CLIENT',
+        style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w800, color: Colors.white)),
+  );
+}
+
+// ── Remote node tile ──────────────────────────────────────────────────────
+
+class _NodeTile extends StatelessWidget {
+  final MeshNodeEntry node;
+  const _NodeTile({required this.node});
 
   @override
   Widget build(BuildContext context) {
+    final isOnline  = node.isConnected;
+    final isRelay   = node.isRelay;
+    final signalPct = ((node.signalStrength + 100) / 70).clamp(0.0, 1.0);
+    final battColor = node.batteryLevel > 50 ? Colors.green : node.batteryLevel > 25 ? Colors.orange : Colors.red;
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+      padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: Colors.teal.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+        color: const Color(0xFF122033),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: isOnline
+            ? (isRelay ? Colors.purple : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
+            : Colors.white12),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.swap_horiz, size: 14.sp, color: Colors.teal),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: Text(
-              'Relayed via ${snapshot.labelForNode(log.relayNodeUuid)}  ·  '
-              '${_formatTime(log.relayedAt)}',
-              style: TextStyle(
-                fontSize: 10.sp,
-                color: AppColors.secondaryTextDefault,
+      child: Row(children: [
+        Stack(children: [
+          CircleAvatar(
+            radius: 20.r,
+            backgroundColor: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.15),
+            child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
+                size: 18.sp, color: isRelay ? Colors.purple : Colors.blue),
+          ),
+          Positioned(
+            right: 0, bottom: 0,
+            child: Container(
+              width: 10.w, height: 10.w,
+              decoration: BoxDecoration(
+                color: isOnline ? Colors.green : Colors.grey,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF122033), width: 1.5),
               ),
             ),
           ),
-        ],
+        ]),
+        SizedBox(width: 12.w),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(node.displayName,
+                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: Colors.white),
+                overflow: TextOverflow.ellipsis)),
+            if (isRelay)
+              _SmallChip('RELAY', Colors.purple),
+          ]),
+          SizedBox(height: 4.h),
+          Row(children: [
+            Icon(Icons.signal_cellular_alt, size: 12.sp, color: Colors.white38),
+            SizedBox(width: 3.w),
+            SizedBox(
+              width: 50.w,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4.r),
+                child: LinearProgressIndicator(
+                  value: signalPct, minHeight: 4.h,
+                  backgroundColor: Colors.white12,
+                  color: signalPct > 0.5 ? Colors.green : Colors.orange,
+                ),
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Icon(Icons.battery_full, size: 12.sp, color: battColor),
+            SizedBox(width: 3.w),
+            Text('${node.batteryLevel.round()}%',
+                style: TextStyle(fontSize: 10.sp, color: battColor)),
+          ]),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(isOnline ? 'Connected' : 'Offline',
+              style: TextStyle(fontSize: 10.sp, color: isOnline ? Colors.green : Colors.grey)),
+          SizedBox(height: 4.h),
+          Text('${node.signalStrength} dBm',
+              style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
+        ]),
+      ]),
+    );
+  }
+}
+
+// ── Message tile ──────────────────────────────────────────────────────────
+
+class _MessageTile extends StatelessWidget {
+  final MeshMessageEntry msg;
+  final OperationsSnapshot snapshot;
+  const _MessageTile({required this.msg, required this.snapshot});
+
+  @override
+  Widget build(BuildContext context) {
+    final hopsLeft = msg.maxHops - msg.hopCount;
+    final ttlPct   = 1.0 - (DateTime.now().difference(msg.createdAt).inHours / msg.ttlHours).clamp(0.0, 1.0);
+
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFF122033),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: msg.isDelivered
+            ? Colors.green.withValues(alpha: 0.3)
+            : Colors.blue.withValues(alpha: 0.3)),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(msg.isDelivered ? Icons.check_circle : Icons.hourglass_top,
+              size: 16.sp, color: msg.isDelivered ? Colors.green : Colors.blue),
+          SizedBox(width: 8.w),
+          Expanded(child: Text(msg.messageType.toUpperCase(),
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white))),
+          _SmallChip('${msg.hopCount}/${msg.maxHops} hops',
+              hopsLeft > 0 ? Colors.blue : Colors.orange),
+        ]),
+        SizedBox(height: 6.h),
+        Row(children: [
+          Text(_shortUuid(msg.senderNodeUuid),
+              style: TextStyle(fontSize: 10.sp, color: Colors.white54)),
+          Icon(Icons.arrow_forward, size: 11.sp, color: Colors.white38),
+          Text(_shortUuid(msg.recipientNodeUuid),
+              style: TextStyle(fontSize: 10.sp, color: Colors.white54)),
+        ]),
+        SizedBox(height: 6.h),
+        // TTL bar
+        Row(children: [
+          Icon(Icons.timer_outlined, size: 11.sp, color: Colors.white38),
+          SizedBox(width: 4.w),
+          Text('TTL ${msg.ttlHours}h', style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
+          SizedBox(width: 8.w),
+          Expanded(child: ClipRRect(
+            borderRadius: BorderRadius.circular(4.r),
+            child: LinearProgressIndicator(
+              value: ttlPct, minHeight: 4.h,
+              backgroundColor: Colors.white12,
+              color: ttlPct > 0.5 ? Colors.green : ttlPct > 0.2 ? Colors.orange : Colors.red,
+            ),
+          )),
+        ]),
+      ]),
     );
   }
 
-  static String _formatTime(DateTime dt) {
+  static String _shortUuid(String uuid) =>
+      uuid.length > 16 ? '${uuid.substring(0, 12)}…' : uuid;
+}
+
+// ── Key card ──────────────────────────────────────────────────────────────
+
+class _KeyCard extends StatelessWidget {
+  final MeshNodeEntry node;
+  final bool isLocal;
+  const _KeyCard({required this.node, required this.isLocal});
+
+  @override
+  Widget build(BuildContext context) {
+    final keySnippet = node.publicKey.length > 24
+        ? '${node.publicKey.substring(0, 24)}…'
+        : node.publicKey;
+
+    return Container(
+      padding: EdgeInsets.all(10.w),
+      decoration: BoxDecoration(
+        color: (isLocal ? AppColors.primarySurfaceDefault : Colors.purple).withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(
+            color: (isLocal ? AppColors.primarySurfaceDefault : Colors.purple).withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Icon(Icons.vpn_key_outlined, size: 16.sp,
+            color: isLocal ? AppColors.primarySurfaceDefault : Colors.purple),
+        SizedBox(width: 8.w),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(node.displayName,
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600, color: Colors.white)),
+          Text(keySnippet,
+              style: TextStyle(fontSize: 10.sp, color: Colors.white38, fontFamily: 'monospace')),
+        ])),
+        if (isLocal) _SmallChip('LOCAL', AppColors.primarySurfaceDefault),
+      ]),
+    );
+  }
+}
+
+// ── Payload inspector ─────────────────────────────────────────────────────
+
+class _PayloadInspector extends StatefulWidget {
+  final MeshMessageEntry msg;
+  final OperationsSnapshot snapshot;
+  const _PayloadInspector({required this.msg, required this.snapshot});
+
+  @override
+  State<_PayloadInspector> createState() => _PayloadInspectorState();
+}
+
+class _PayloadInspectorState extends State<_PayloadInspector> {
+  bool _showEncrypted = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final encrypted = widget.msg.encryptedPayload;
+    final hash      = widget.msg.payloadHash;
+    final displayText = _showEncrypted
+        ? (encrypted.length > 80 ? '${encrypted.substring(0, 80)}…' : encrypted)
+        : hash;
+
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.lock, size: 14.sp, color: Colors.green),
+          SizedBox(width: 6.w),
+          Text('Payload — ${widget.msg.messageType}',
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+          const Spacer(),
+          GestureDetector(
+            onTap: () => setState(() => _showEncrypted = !_showEncrypted),
+            child: _SmallChip(_showEncrypted ? 'Cipher' : 'Hash', Colors.teal),
+          ),
+        ]),
+        SizedBox(height: 6.h),
+        Container(
+          padding: EdgeInsets.all(8.w),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(6.r),
+          ),
+          child: Text(displayText,
+              style: TextStyle(fontSize: 10.sp, color: Colors.green.shade300, fontFamily: 'monospace')),
+        ),
+        SizedBox(height: 6.h),
+        Row(children: [
+          Icon(Icons.info_outline, size: 11.sp, color: Colors.white38),
+          SizedBox(width: 4.w),
+          Expanded(child: Text(
+            'Relay nodes see only ciphertext — cannot read payload contents.',
+            style: TextStyle(fontSize: 10.sp, color: Colors.white38),
+          )),
+        ]),
+      ]),
+    );
+  }
+}
+
+// ── Hop tile ──────────────────────────────────────────────────────────────
+
+class _HopTile extends StatelessWidget {
+  final MeshRelayHopEntry log;
+  final OperationsSnapshot snapshot;
+  const _HopTile({required this.log, required this.snapshot});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+    decoration: BoxDecoration(
+      color: Colors.teal.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(8.r),
+      border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+    ),
+    child: Row(children: [
+      Icon(Icons.swap_horiz, size: 14.sp, color: Colors.teal),
+      SizedBox(width: 8.w),
+      Expanded(child: Text(
+        'Relayed via ${snapshot.labelForNode(log.relayNodeUuid)}  ·  ${_timeAgo(log.relayedAt)}',
+        style: TextStyle(fontSize: 10.sp, color: Colors.white54),
+      )),
+    ]),
+  );
+
+  static String _timeAgo(DateTime dt) {
     final d = DateTime.now().difference(dt);
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inHours < 1) return '${d.inMinutes}m ago';
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
     return '${d.inHours}h ago';
   }
+}
+
+// ── Empty states ──────────────────────────────────────────────────────────
+
+class _EmptyMesh extends StatelessWidget {
+  final VoidCallback onInject;
+  const _EmptyMesh({required this.onInject});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(24.w),
+    decoration: BoxDecoration(
+      color: const Color(0xFF122033),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: Colors.white12),
+    ),
+    child: Column(children: [
+      Icon(Icons.wifi_tethering, size: 44.sp, color: Colors.white24),
+      SizedBox(height: 10.h),
+      Text('No peers detected', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.white54)),
+      SizedBox(height: 6.h),
+      Text('No real BLE devices nearby. Tap "Add Peers" to inject demo nodes.',
+          style: TextStyle(fontSize: 11.sp, color: Colors.white38), textAlign: TextAlign.center),
+      SizedBox(height: 14.h),
+      ElevatedButton.icon(
+        onPressed: onInject,
+        icon: Icon(Icons.group_add_outlined, size: 16.sp),
+        label: const Text('Add Demo Peers'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.teal,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+        ),
+      ),
+    ]),
+  );
+}
+
+class _EmptyQueueCard extends StatelessWidget {
+  const _EmptyQueueCard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.all(20.w),
+    decoration: BoxDecoration(
+      color: const Color(0xFF122033),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: Colors.white12),
+    ),
+    child: Column(children: [
+      Icon(Icons.inbox, size: 40.sp, color: Colors.white24),
+      SizedBox(height: 8.h),
+      Text('Queue is empty', style: TextStyle(fontSize: 13.sp, color: Colors.white54)),
+      SizedBox(height: 4.h),
+      Text('Tap "Queue Msg" to create a store-and-forward relay message.',
+          style: TextStyle(fontSize: 11.sp, color: Colors.white38), textAlign: TextAlign.center),
+    ]),
+  );
+}
+
+// ── Small chip ────────────────────────────────────────────────────────────
+
+class _SmallChip extends StatelessWidget {
+  final String label;
+  final Color  color;
+  const _SmallChip(this.label, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 9.sp, fontWeight: FontWeight.w700, color: color)),
+  );
 }
