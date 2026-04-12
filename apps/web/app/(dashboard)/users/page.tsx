@@ -51,7 +51,10 @@ export default function UsersPage() {
     dataUpdatedAt,
   } = useQuery<User[]>({
     queryKey: ['users'],
-    queryFn: () => api.get<User[]>('/users').then(r => r.data),
+    queryFn: () =>
+      api
+        .get<{ data: User[]; meta: unknown }>('/users')
+        .then(r => (Array.isArray(r.data) ? r.data : (r.data?.data ?? []))),
     staleTime: 15_000,
   });
 

@@ -129,7 +129,7 @@ export default function MlPage() {
           : r.riskLevel === 'medium'
             ? 'blue'
             : 'green',
-    children: (
+    content: (
       <div>
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="font-mono font-medium text-sm">{r.mission.mission_code}</span>

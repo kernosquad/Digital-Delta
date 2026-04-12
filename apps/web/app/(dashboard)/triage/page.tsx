@@ -208,12 +208,12 @@ export default function TriagePage() {
           description={breachedMissions.map(m => m.mission_code).join(', ')}
           type="error"
           showIcon
-          className="mb-4"
+          className="mb-4!"
         />
       )}
 
       {decisionsError && (
-        <Alert message="Failed to load triage data." type="error" showIcon className="mb-4" />
+        <Alert message="Failed to load triage data." type="error" showIcon className="mb-4!" />
       )}
 
       <Row gutter={[16, 16]}>

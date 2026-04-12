@@ -102,13 +102,13 @@ export default function SyncPage() {
           <div>
             <span className="font-semibold text-blue-600">A:</span>{' '}
             <span className="font-mono text-dd-gray-600 truncate max-w-xs inline-block">
-              {JSON.stringify(c.node_a_value).slice(0, 60)}…
+              {(JSON.stringify(c.node_a_value) ?? '—').slice(0, 60)}…
             </span>
           </div>
           <div>
             <span className="font-semibold text-orange-600">B:</span>{' '}
             <span className="font-mono text-dd-gray-600 truncate max-w-xs inline-block">
-              {JSON.stringify(c.node_b_value).slice(0, 60)}…
+              {(JSON.stringify(c.node_b_value) ?? '—').slice(0, 60)}…
             </span>
           </div>
         </div>

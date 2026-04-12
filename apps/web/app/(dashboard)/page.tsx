@@ -120,7 +120,7 @@ export default function OverviewPage() {
               View Triage
             </Button>
           }
-          className="mb-6"
+          className="mb-6!"
         />
       )}
 
