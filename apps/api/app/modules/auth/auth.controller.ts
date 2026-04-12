@@ -1,5 +1,6 @@
 import { inject } from '@adonisjs/core';
 
+import { AuthService } from './auth.service.js';
 import {
   loginValidator,
   otpSetupValidator,
@@ -8,7 +9,6 @@ import {
   registerValidator,
 } from './auth.validator.js';
 
-import type { AuthService } from './auth.service.js';
 import type { HttpContext } from '@adonisjs/core/http';
 
 @inject()

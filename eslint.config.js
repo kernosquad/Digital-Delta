@@ -92,6 +92,16 @@ export default tseslint.config(
     },
   },
 
+  // AdonisJS controllers use @inject() which relies on emitDecoratorMetadata.
+  // consistent-type-imports would convert service imports to `import type`,
+  // breaking DI resolution at runtime.
+  {
+    files: ['apps/api/app/**/*.controller.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'off',
+    },
+  },
+
   // Global ignores
   {
     ignores: [
