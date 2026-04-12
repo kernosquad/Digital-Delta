@@ -10,7 +10,9 @@ import {
   MenuUnfoldOutlined,
   RadarChartOutlined,
   RobotOutlined,
+  RocketOutlined,
   SafetyOutlined,
+  TeamOutlined,
   ThunderboltOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
@@ -41,11 +43,13 @@ const ROLE_COLORS: Record<string, string> = {
 
 const NAV_ITEMS = [
   { key: '/', icon: <DashboardOutlined />, label: 'Overview' },
+  { key: '/missions', icon: <RocketOutlined />, label: 'Mission Control' },
   { key: '/map', icon: <RadarChartOutlined />, label: 'Operations Map' },
   { key: '/supply', icon: <BarChartOutlined />, label: 'Supply Inventory' },
   { key: '/fleet', icon: <CarOutlined />, label: 'Fleet & Drones' },
   { key: '/triage', icon: <WarningOutlined />, label: 'Triage Queue' },
   { key: '/ml', icon: <RobotOutlined />, label: 'ML Predictions' },
+  { key: '/users', icon: <TeamOutlined />, label: 'User Management' },
   { key: '/audit', icon: <AuditOutlined />, label: 'Audit Log' },
 ];
 

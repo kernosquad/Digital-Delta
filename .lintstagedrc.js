@@ -15,15 +15,11 @@ export default {
 
     if (apiFiles.length > 0) {
       const escaped = apiFiles.map((f) => `"${f}"`).join(' ');
-      commands.push(
-        `pnpm --filter api exec eslint --fix --max-warnings 0 --no-warn-ignored ${escaped}`
-      );
+      commands.push(`pnpm --filter api exec eslint --fix --no-warn-ignored ${escaped}`);
     }
     if (webFiles.length > 0) {
       const escaped = webFiles.map((f) => `"${f}"`).join(' ');
-      commands.push(
-        `pnpm --filter web exec eslint --fix --max-warnings 0 --no-warn-ignored ${escaped}`
-      );
+      commands.push(`pnpm --filter web exec eslint --fix --no-warn-ignored ${escaped}`);
     }
 
     // Prettier runs from root for all files
