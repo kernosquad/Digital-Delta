@@ -44,28 +44,28 @@ class _CargoScreenState extends State<CargoScreen> {
                   SizedBox(width: 8.w),
                   _PriorityChip(
                     label: 'Critical',
-                    color: Colors.red,
+                    color: AppColors.priorityP0,
                     isSelected: _selectedPriority == 'P0',
                     onTap: () => setState(() => _selectedPriority = 'P0'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
                     label: 'High',
-                    color: Colors.orange,
+                    color: AppColors.priorityP1,
                     isSelected: _selectedPriority == 'P1',
                     onTap: () => setState(() => _selectedPriority = 'P1'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
                     label: 'Standard',
-                    color: Colors.blue,
+                    color: AppColors.priorityP2,
                     isSelected: _selectedPriority == 'P2',
                     onTap: () => setState(() => _selectedPriority = 'P2'),
                   ),
                   SizedBox(width: 8.w),
                   _PriorityChip(
                     label: 'Low',
-                    color: Colors.grey,
+                    color: AppColors.priorityP3,
                     isSelected: _selectedPriority == 'P3',
                     onTap: () => setState(() => _selectedPriority = 'P3'),
                   ),
@@ -200,11 +200,11 @@ class _PriorityChip extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
         decoration: BoxDecoration(
-          color: isSelected ? chipColor : Colors.grey.shade100,
+          color: isSelected ? chipColor : AppColors.neutralSurfaceTint,
           borderRadius: BorderRadius.circular(20.r),
           border: isSelected
               ? null
-              : Border.all(color: Colors.grey.shade300, width: 1),
+              : Border.all(color: AppColors.borderDefault, width: 1),
         ),
         child: Text(
           label,
@@ -247,15 +247,15 @@ class _CargoCard extends StatelessWidget {
   Color _getPriorityColor() {
     switch (priority) {
       case 'P0':
-        return Colors.red;
+        return AppColors.priorityP0;
       case 'P1':
-        return Colors.orange;
+        return AppColors.priorityP1;
       case 'P2':
-        return Colors.blue;
+        return AppColors.priorityP2;
       case 'P3':
-        return Colors.grey;
+        return AppColors.priorityP3;
       default:
-        return Colors.grey;
+        return AppColors.priorityP3;
     }
   }
 
@@ -267,12 +267,12 @@ class _CargoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
-        border: breachRisk ? Border.all(color: Colors.red, width: 2) : null,
+        border: breachRisk ? Border.all(color: AppColors.dangerSurfaceDefault, width: 2) : null,
         boxShadow: [
           BoxShadow(
             color: breachRisk
-                ? Colors.red.withValues(alpha: 0.15)
-                : Colors.black.withValues(alpha: 0.06),
+                ? AppColors.dangerSurfaceDefault.withValues(alpha: 0.15)
+                : AppColors.primaryTextDefault.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -325,7 +325,7 @@ class _CargoCard extends StatelessWidget {
                       vertical: 4.h,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: AppColors.dangerSurfaceDefault,
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Row(
@@ -394,7 +394,7 @@ class _CargoCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 12.h),
-                Divider(height: 1, color: Colors.grey.shade200),
+                Divider(height: 1, color: AppColors.borderDefault),
                 SizedBox(height: 12.h),
                 _InfoRow(
                   icon: Icons.access_time,
@@ -428,15 +428,15 @@ class _CargoCard extends StatelessWidget {
   Color _getStatusColor() {
     switch (status.toLowerCase()) {
       case 'in transit':
-        return Colors.blue;
+        return AppColors.priorityP2;
       case 'delivered':
-        return Colors.green;
+        return AppColors.statusOnline;
       case 'pending':
-        return Colors.orange;
+        return AppColors.statusPending;
       case 'queued':
-        return Colors.grey;
+        return AppColors.statusIdle;
       default:
-        return Colors.grey;
+        return AppColors.statusIdle;
     }
   }
 }

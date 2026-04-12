@@ -49,11 +49,11 @@ class _RoutingScreenState extends State<RoutingScreen>
   bool _preempting = false;
   int? _preemptingId;
 
-  static const List<Map<String, dynamic>> _priorityTaxonomy = [
-    {'class': 'p0_critical', 'label': 'P0 Critical', 'sla': '2 hrs', 'color': 0xFFD32F2F, 'example': 'Antivenom, blood, oxygen'},
-    {'class': 'p1_high',     'label': 'P1 High',     'sla': '6 hrs', 'color': 0xFFF57C00, 'example': 'Surgical kits, IV fluids'},
-    {'class': 'p2_standard', 'label': 'P2 Standard', 'sla': '24 hrs','color': 0xFFF9A825, 'example': 'Food, blankets, meds'},
-    {'class': 'p3_low',      'label': 'P3 Low',      'sla': '72 hrs','color': 0xFF388E3C, 'example': 'Non-urgent supplies'},
+  static final List<Map<String, dynamic>> _priorityTaxonomy = [
+    {'class': 'p0_critical', 'label': 'P0 Critical', 'sla': '2 hrs',  'color': AppColors.priorityP0.toARGB32(), 'example': 'Antivenom, blood, oxygen'},
+    {'class': 'p1_high',     'label': 'P1 High',     'sla': '6 hrs',  'color': AppColors.priorityP1.toARGB32(), 'example': 'Surgical kits, IV fluids'},
+    {'class': 'p2_standard', 'label': 'P2 Standard', 'sla': '24 hrs', 'color': AppColors.priorityP2.toARGB32(), 'example': 'Food, blankets, meds'},
+    {'class': 'p3_low',      'label': 'P3 Low',      'sla': '72 hrs', 'color': AppColors.statusOnline.toARGB32(), 'example': 'Non-urgent supplies'},
   ];
 
   static const String _baseUrl = String.fromEnvironment(
@@ -188,7 +188,7 @@ class _RoutingScreenState extends State<RoutingScreen>
     final edgeId = edge['id'];
     if (edgeId == null) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Offline: failure logged locally'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Offline: failure logged locally'), backgroundColor: AppColors.statusPending),
       );
       await _computeRoute();
       return;
@@ -202,12 +202,12 @@ class _RoutingScreenState extends State<RoutingScreen>
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${edge['code']} marked flooded. Recomputing…'), backgroundColor: Colors.orange),
+          SnackBar(content: Text('${edge['code']} marked flooded. Recomputing…'), backgroundColor: AppColors.statusPending),
         );
       }
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Offline: failure logged locally'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Offline: failure logged locally'), backgroundColor: AppColors.statusPending),
       );
     }
     // M4.2 — recompute triggered immediately after failure
@@ -228,14 +228,14 @@ class _RoutingScreenState extends State<RoutingScreen>
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ML run complete — ${preds.length} routes evaluated'), backgroundColor: Colors.green),
+          SnackBar(content: Text('ML run complete — ${preds.length} routes evaluated'), backgroundColor: AppColors.statusOnline),
         );
       }
     } catch (_) {
       setState(() => _mlPredictions = _stubMlPredictions());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Offline: showing simulated predictions'), backgroundColor: Colors.orange),
+          const SnackBar(content: Text('Offline: showing simulated predictions'), backgroundColor: AppColors.statusPending),
         );
       }
     } finally {
@@ -304,13 +304,13 @@ class _RoutingScreenState extends State<RoutingScreen>
       setState(() => _preemptResult = res.data['data'] as Map<String, dynamic>?);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Auto-preempt logged for $missionCode'), backgroundColor: Colors.deepOrange),
+          SnackBar(content: Text('Auto-preempt logged for $missionCode'), backgroundColor: AppColors.statusPending),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Offline: preemption decision stored locally'), backgroundColor: Colors.orange),
+          const SnackBar(content: Text('Offline: preemption decision stored locally'), backgroundColor: AppColors.statusPending),
         );
       }
     } finally {
@@ -467,10 +467,10 @@ class _RoutingScreenState extends State<RoutingScreen>
               value: node['code'] as String?,
               child: Row(
                 children: [
-                  Icon(_nodeIcon(node['type'] as String? ?? ''), size: 16.sp, color: isFlooded ? Colors.red : AppColors.primarySurfaceDefault),
+                  Icon(_nodeIcon(node['type'] as String? ?? ''), size: 16.sp, color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.primarySurfaceDefault),
                   SizedBox(width: 8.w),
                   Expanded(child: Text('${node['code']} — ${node['name']}', style: TextStyle(fontSize: 13.sp), overflow: TextOverflow.ellipsis)),
-                  if (isFlooded) const Icon(Icons.warning, size: 14, color: Colors.red),
+                  if (isFlooded) Icon(Icons.warning, size: 14, color: AppColors.dangerSurfaceDefault),
                 ],
               ),
             );
@@ -495,13 +495,13 @@ class _RoutingScreenState extends State<RoutingScreen>
           width: double.infinity,
           padding: EdgeInsets.all(16.w),
           decoration: BoxDecoration(
-            color: isViable ? AppColors.primarySurfaceDefault.withValues(alpha: 0.08) : Colors.red.shade50,
+            color: isViable ? AppColors.primarySurfaceDefault.withValues(alpha: 0.08) : AppColors.dangerSurfaceTint,
             borderRadius: BorderRadius.circular(16.r),
-            border: Border.all(color: isViable ? AppColors.primarySurfaceDefault : Colors.red.shade300),
+            border: Border.all(color: isViable ? AppColors.primarySurfaceDefault : AppColors.dangerSurfaceDefault),
           ),
           child: Row(
             children: [
-              Icon(isViable ? Icons.check_circle : Icons.cancel, color: isViable ? AppColors.primarySurfaceDefault : Colors.red, size: 36.sp),
+              Icon(isViable ? Icons.check_circle : Icons.cancel, color: isViable ? AppColors.primarySurfaceDefault : AppColors.dangerSurfaceDefault, size: 36.sp),
               SizedBox(width: 16.w),
               Expanded(
                 child: Column(
@@ -509,13 +509,13 @@ class _RoutingScreenState extends State<RoutingScreen>
                   children: [
                     Text(
                       isViable ? 'Optimal Route Found' : 'No Viable Route',
-                      style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700, color: isViable ? AppColors.primaryTextDefault : Colors.red),
+                      style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700, color: isViable ? AppColors.primaryTextDefault : AppColors.dangerSurfaceDefault),
                     ),
                     if (isViable && totalMins != null)
                       Text('${_formatDuration(totalMins)}  ·  ${path.length} stops  ·  $_vehicle',
                           style: TextStyle(fontSize: 13.sp, color: AppColors.secondaryTextDefault)),
                     if (!isViable)
-                      Text('All $_vehicle paths flooded/blocked', style: TextStyle(fontSize: 13.sp, color: Colors.red.shade700)),
+                      Text('All $_vehicle paths flooded/blocked', style: TextStyle(fontSize: 13.sp, color: AppColors.dangerSurfaceDefault)),
                   ],
                 ),
               ),
@@ -546,7 +546,7 @@ class _RoutingScreenState extends State<RoutingScreen>
               children: [
                 Container(
                   width: 32.w, height: 32.h,
-                  decoration: BoxDecoration(color: isFlooded ? Colors.red : AppColors.primarySurfaceDefault, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.primarySurfaceDefault, shape: BoxShape.circle),
                   child: Center(child: Text('${step['step']}', style: TextStyle(fontSize: 12.sp, color: Colors.white, fontWeight: FontWeight.w700))),
                 ),
                 if (!isLast) Container(width: 2, height: 44.h, color: AppColors.borderDefault),
@@ -560,11 +560,11 @@ class _RoutingScreenState extends State<RoutingScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(node?['name'] as String? ?? node?['code'] as String? ?? '—',
-                        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: isFlooded ? Colors.red : AppColors.primaryTextDefault)),
+                        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.primaryTextDefault)),
                     if (node?['type'] != null)
                       Text(_nodeLabel(node!['type'] as String? ?? ''), style: TextStyle(fontSize: 11.sp, color: AppColors.secondaryTextDefault)),
                     if (isFlooded)
-                      Row(children: [const Icon(Icons.warning, size: 12, color: Colors.red), SizedBox(width: 4.w), Text('FLOODED', style: TextStyle(fontSize: 11.sp, color: Colors.red, fontWeight: FontWeight.w700))]),
+                      Row(children: [Icon(Icons.warning, size: 12, color: AppColors.dangerSurfaceDefault), SizedBox(width: 4.w), Text('FLOODED', style: TextStyle(fontSize: 11.sp, color: AppColors.dangerSurfaceDefault, fontWeight: FontWeight.w700))]),
                     if (edge != null) ...[
                       SizedBox(height: 6.h),
                       Row(
@@ -577,13 +577,13 @@ class _RoutingScreenState extends State<RoutingScreen>
                             onTap: () => _markEdgeFailed(edge),
                             child: Container(
                               padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6.r), border: Border.all(color: Colors.red.shade300)),
+                              decoration: BoxDecoration(color: AppColors.dangerSurfaceTint, borderRadius: BorderRadius.circular(6.r), border: Border.all(color: AppColors.dangerSurfaceDefault)),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.warning, size: 11, color: Colors.red),
+                                  Icon(Icons.warning, size: 11, color: AppColors.dangerSurfaceDefault),
                                   SizedBox(width: 3.w),
-                                  Text('Mark Failed', style: TextStyle(fontSize: 10.sp, color: Colors.red, fontWeight: FontWeight.w600)),
+                                  Text('Mark Failed', style: TextStyle(fontSize: 10.sp, color: AppColors.dangerSurfaceDefault, fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -636,7 +636,7 @@ class _RoutingScreenState extends State<RoutingScreen>
           SizedBox(width: 16.w),
           _LegendDot(color: const Color(0xFFFF9800), label: 'Airway'),
           const Spacer(),
-          _LegendDot(color: Colors.red, label: 'Flooded'),
+          _LegendDot(color: AppColors.dangerSurfaceDefault, label: 'Flooded'),
         ],
       ),
     );
@@ -650,17 +650,17 @@ class _RoutingScreenState extends State<RoutingScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: isFlooded ? Colors.red.shade300 : AppColors.borderDefault),
+        border: Border.all(color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.borderDefault),
       ),
       child: Row(
         children: [
           Container(
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
-              color: isFlooded ? Colors.red.shade50 : AppColors.primarySurfaceDefault.withValues(alpha: 0.1),
+              color: isFlooded ? AppColors.dangerSurfaceTint : AppColors.primarySurfaceDefault.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8.r),
             ),
-            child: Icon(_nodeIcon(node['type'] as String? ?? ''), size: 18.sp, color: isFlooded ? Colors.red : AppColors.primarySurfaceDefault),
+            child: Icon(_nodeIcon(node['type'] as String? ?? ''), size: 18.sp, color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.primarySurfaceDefault),
           ),
           SizedBox(width: 12.w),
           Expanded(
@@ -672,7 +672,7 @@ class _RoutingScreenState extends State<RoutingScreen>
               ],
             ),
           ),
-          _StatusBadge(label: isFlooded ? 'FLOODED' : 'ACTIVE', color: isFlooded ? Colors.red : Colors.green),
+          _StatusBadge(label: isFlooded ? 'FLOODED' : 'ACTIVE', color: isFlooded ? AppColors.dangerSurfaceDefault : AppColors.statusOnline),
         ],
       ),
     );
@@ -690,7 +690,7 @@ class _RoutingScreenState extends State<RoutingScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: bad ? Colors.red.shade300 : AppColors.borderDefault),
+        border: Border.all(color: bad ? AppColors.dangerSurfaceDefault : AppColors.borderDefault),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10.r),
@@ -719,7 +719,7 @@ class _RoutingScreenState extends State<RoutingScreen>
                         ],
                       ),
                     ),
-                    _StatusBadge(label: isFlooded ? 'FLOODED' : (isBlocked ? 'BLOCKED' : 'OPEN'), color: bad ? Colors.red : Colors.green),
+                    _StatusBadge(label: isFlooded ? 'FLOODED' : (isBlocked ? 'BLOCKED' : 'OPEN'), color: bad ? AppColors.dangerSurfaceDefault : AppColors.statusOnline),
                   ],
                 ),
               ),
@@ -790,13 +790,13 @@ class _RoutingScreenState extends State<RoutingScreen>
           SizedBox(height: 8.h),
           Row(
             children: [
-              _MlLegendChip(label: 'Low <0.3',       color: Colors.green),
+              _MlLegendChip(label: 'Low <0.3',       color: AppColors.statusOnline),
               SizedBox(width: 8.w),
-              _MlLegendChip(label: 'Medium 0.3-0.5', color: Colors.orange),
+              _MlLegendChip(label: 'Medium 0.3-0.5', color: AppColors.statusPending),
               SizedBox(width: 8.w),
-              _MlLegendChip(label: 'High 0.5-0.7',   color: Colors.deepOrange),
+              _MlLegendChip(label: 'High 0.5-0.7',   color: AppColors.warningSurfaceDefault),
               SizedBox(width: 8.w),
-              _MlLegendChip(label: 'Critical >0.7',  color: Colors.red),
+              _MlLegendChip(label: 'Critical >0.7',  color: AppColors.dangerSurfaceDefault),
             ],
           ),
           SizedBox(height: 6.h),
@@ -832,10 +832,10 @@ class _RoutingScreenState extends State<RoutingScreen>
     final snap = pred['features_snapshot'] as Map<String, dynamic>? ?? {};
 
     final riskColor = switch (riskLevel) {
-      'critical' => Colors.red,
-      'high'     => Colors.deepOrange,
-      'medium'   => Colors.orange,
-      _          => Colors.green,
+      'critical' => AppColors.dangerSurfaceDefault,
+      'high'     => AppColors.dangerSurfaceDefault,
+      'medium'   => AppColors.statusPending,
+      _          => AppColors.statusOnline,
     };
 
     final isHighRisk = prob > 0.7;
@@ -873,8 +873,8 @@ class _RoutingScreenState extends State<RoutingScreen>
                         SizedBox(width: 6.w),
                         Container(
                           padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
-                          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4.r)),
-                          child: Text('PENALIZED', style: TextStyle(fontSize: 9.sp, color: Colors.red, fontWeight: FontWeight.w700)),
+                          decoration: BoxDecoration(color: AppColors.dangerSurfaceTint, borderRadius: BorderRadius.circular(4.r)),
+                          child: Text('PENALIZED', style: TextStyle(fontSize: 9.sp, color: AppColors.dangerSurfaceDefault, fontWeight: FontWeight.w700)),
                         ),
                       ],
                       const Spacer(),
@@ -973,7 +973,7 @@ class _RoutingScreenState extends State<RoutingScreen>
                   child: ElevatedButton.icon(
                     onPressed: _breachLoading ? null : _predictSlaBreach,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepOrange,
+                      backgroundColor: AppColors.statusPending,
                       padding: EdgeInsets.symmetric(vertical: 12.h),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
                     ),
@@ -1067,15 +1067,15 @@ class _RoutingScreenState extends State<RoutingScreen>
   Widget _buildBreachCard(Map<String, dynamic> pred) {
     final willBreach = pred['will_breach_sla'] == true;
     final urgency = pred['urgency'] as String? ?? 'ok';
-    final urgencyColor = urgency == 'critical' ? Colors.red : urgency == 'warning' ? Colors.orange : Colors.green;
+    final urgencyColor = urgency == 'critical' ? AppColors.dangerSurfaceDefault : urgency == 'warning' ? AppColors.statusPending : AppColors.statusOnline;
 
     return Container(
       margin: EdgeInsets.only(bottom: 8.h),
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: willBreach ? urgencyColor.withValues(alpha: 0.06) : Colors.green.shade50,
+        color: willBreach ? urgencyColor.withValues(alpha: 0.06) : AppColors.primarySurfaceTint,
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: willBreach ? urgencyColor.withValues(alpha: 0.4) : Colors.green.shade200),
+        border: Border.all(color: willBreach ? urgencyColor.withValues(alpha: 0.4) : AppColors.borderActive),
       ),
       child: Row(
         children: [
@@ -1153,16 +1153,16 @@ class _RoutingScreenState extends State<RoutingScreen>
           ElevatedButton.icon(
             onPressed: (_preempting || isCritical) ? null : () => _autoPreempt(missionId, missionCode),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepOrange,
-              disabledBackgroundColor: isCritical ? Colors.green.shade100 : Colors.grey.shade200,
+              backgroundColor: AppColors.statusPending,
+              disabledBackgroundColor: isCritical ? AppColors.primarySurfaceTint : AppColors.borderDefault,
               padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
             ),
             icon: isPreempting
                 ? SizedBox(width: 12.w, height: 12.h, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Icon(isCritical ? Icons.shield : Icons.swap_calls, size: 14.sp, color: isCritical ? Colors.green : Colors.white),
+                : Icon(isCritical ? Icons.shield : Icons.swap_calls, size: 14.sp, color: isCritical ? AppColors.statusOnline : Colors.white),
             label: Text(isCritical ? 'Priority' : 'Preempt',
-                style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600, color: isCritical ? Colors.green.shade700 : Colors.white)),
+                style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w600, color: isCritical ? AppColors.primarySurfaceDefault : Colors.white)),
           ),
         ],
       ),
@@ -1178,19 +1178,19 @@ class _RoutingScreenState extends State<RoutingScreen>
     return Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
-        color: isDropReroute ? Colors.deepOrange.shade50 : Colors.green.shade50,
+        color: isDropReroute ? AppColors.warningSurfaceTint : AppColors.primarySurfaceTint,
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: isDropReroute ? Colors.deepOrange.shade200 : Colors.green.shade200),
+        border: Border.all(color: isDropReroute ? AppColors.warningSurfaceDefault : AppColors.borderActive),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(isDropReroute ? Icons.swap_calls : Icons.shield, color: isDropReroute ? Colors.deepOrange : Colors.green, size: 18.sp),
+              Icon(isDropReroute ? Icons.swap_calls : Icons.shield, color: isDropReroute ? AppColors.statusPending : AppColors.statusOnline, size: 18.sp),
               SizedBox(width: 8.w),
               Text(isDropReroute ? 'Drop & Reroute Decision' : 'Priority Maintained',
-                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: isDropReroute ? Colors.deepOrange : Colors.green.shade700)),
+                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: isDropReroute ? AppColors.statusPending : AppColors.primarySurfaceDefault)),
             ],
           ),
           SizedBox(height: 8.h),
@@ -1256,10 +1256,10 @@ class _RoutingScreenState extends State<RoutingScreen>
   };
 
   Color _priorityColor(String cls) => switch (cls) {
-    'p0_critical' => Colors.red,
-    'p1_high'     => Colors.orange,
-    'p2_standard' => Colors.amber,
-    'p3_low'      => Colors.green,
+    'p0_critical' => AppColors.priorityP0,
+    'p1_high'     => AppColors.priorityP1,
+    'p2_standard' => AppColors.priorityP2,
+    'p3_low'      => AppColors.statusOnline,
     _             => AppColors.borderDefault,
   };
 
@@ -1401,15 +1401,15 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: AppColors.dangerSurfaceTint,
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: AppColors.dangerSurfaceDefault),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red, size: 18.sp),
+          Icon(Icons.error_outline, color: AppColors.dangerSurfaceDefault, size: 18.sp),
           SizedBox(width: 8.w),
-          Expanded(child: Text(message, style: TextStyle(fontSize: 13.sp, color: Colors.red.shade800))),
+          Expanded(child: Text(message, style: TextStyle(fontSize: 13.sp, color: AppColors.dangerSurfaceDefault))),
         ],
       ),
     );

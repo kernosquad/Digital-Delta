@@ -129,9 +129,9 @@ class HomeScreen extends ConsumerWidget {
     final dataState = ref.watch(appDataNotifierProvider);
 
     final syncInfo = connectivity.when(
-      initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
-      online: (_) => ('Online', Colors.green, Icons.cloud_done),
-      offline: () => ('Offline', Colors.orange, Icons.cloud_off),
+      initial: () => ('Initializing', AppColors.statusIdle, Icons.hourglass_empty),
+      online: (_) => ('Online', AppColors.statusOnline, Icons.cloud_done),
+      offline: () => ('Offline', AppColors.statusPending, Icons.cloud_off),
     );
 
     final opCards =
@@ -310,11 +310,11 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Color _roleColor(UserRole role) => switch (role) {
-        UserRole.fieldVolunteer => Colors.green,
-        UserRole.supplyManager => Colors.blue,
-        UserRole.droneOperator => Colors.indigo,
-        UserRole.campCommander => Colors.orange,
-        UserRole.syncAdmin => Colors.red,
+        UserRole.fieldVolunteer => AppColors.roleVolunteer,
+        UserRole.supplyManager  => AppColors.roleSupplyMgr,
+        UserRole.droneOperator  => AppColors.roleDroneOp,
+        UserRole.campCommander  => AppColors.roleCommander,
+        UserRole.syncAdmin      => AppColors.roleSyncAdmin,
       };
 
   IconData _roleIcon(UserRole role) => switch (role) {

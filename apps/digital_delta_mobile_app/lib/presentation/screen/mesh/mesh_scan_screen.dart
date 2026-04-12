@@ -191,21 +191,21 @@ class _TopologyTab extends StatelessWidget {
 
         // ── Quick stats ────────────────────────────────────────────────
         Row(children: [
-          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Devices',   color: Colors.teal),
+          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Devices',   color: AppColors.primarySurfaceDefault),
           SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Helpers',  color: Colors.deepPurple),
+          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Helpers',  color: AppColors.nodeDroneBase),
           SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.mail_outline,    value: '${summary.queuedMessages}', label: 'Queued',  color: Colors.pink),
+          _MeshStat(icon: Icons.mail_outline,    value: '${summary.queuedMessages}', label: 'Queued',  color: AppColors.dangerSurfaceLight),
           SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.warning_amber_outlined, value: '${summary.openConflicts}',  label: 'Conflicts', color: Colors.orange),
+          _MeshStat(icon: Icons.warning_amber_outlined, value: '${summary.openConflicts}',  label: 'Conflicts', color: AppColors.statusPending),
         ]),
         SizedBox(height: 14.h),
 
         // ── Action row ─────────────────────────────────────────────────
         _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.send_outlined,   label: 'Queue Msg',  color: Colors.blue,       onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,         label: 'Forward',    color: Colors.deepPurple, onTap: notifier.relayNextMessage),
-          _DemoBtn(icon: Icons.sync,            label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
+          _DemoBtn(icon: Icons.send_outlined,   label: 'Queue Msg',  color: AppColors.priorityP2,      onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,         label: 'Forward',    color: AppColors.nodeDroneBase,   onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.sync,            label: 'Refresh',    color: AppColors.statusIdle,      onTap: notifier.refresh),
         ]),
         SizedBox(height: 16.h),
 
@@ -260,7 +260,7 @@ class _RelayQueueTab extends StatelessWidget {
         // M3.1 info card
         _InfoCard(
           icon: Icons.swap_horiz,
-          color: Colors.blue,
+          color: AppColors.priorityP2,
           title: 'Save & Forward Messages',
           body: 'Messages are saved and delivered even if some devices go offline along the way. '
               'Each message stays active for 24 hours and is forwarded across up to 10 devices. Tap "Send Msg" then "Forward" to try it.',
@@ -269,8 +269,8 @@ class _RelayQueueTab extends StatelessWidget {
 
         // Action row
         _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.send_outlined,  label: 'Send Msg',   color: Colors.blue,       onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,        label: 'Forward',    color: Colors.deepPurple, onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.send_outlined,  label: 'Send Msg',   color: AppColors.priorityP2,    onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,        label: 'Forward',    color: AppColors.nodeDroneBase, onTap: notifier.relayNextMessage),
           _DemoBtn(icon: Icons.sync,           label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
         ]),
         SizedBox(height: 16.h),
@@ -318,7 +318,7 @@ class _EncryptionTab extends StatelessWidget {
       children: [
         _InfoCard(
           icon: Icons.lock_outlined,
-          color: Colors.green,
+          color: AppColors.primarySurfaceDefault,
           title: 'Private Messaging',
           body: 'All messages are scrambled so only the intended recipient can read them. '
               'Other devices that pass the message along cannot see its contents. '
@@ -330,7 +330,7 @@ class _EncryptionTab extends StatelessWidget {
         _SectionHeader(title: 'Device Security Keys', subtitle: '${snapshot.nodes.length} devices'),
         SizedBox(height: 8.h),
         if (snapshot.nodes.isEmpty)
-          _InfoCard(icon: Icons.key_off, color: Colors.grey,
+          _InfoCard(icon: Icons.key_off, color: AppColors.statusIdle,
               title: 'No devices yet',
               body: 'Add demo devices to see their security keys here')
         else
@@ -345,7 +345,7 @@ class _EncryptionTab extends StatelessWidget {
         _SectionHeader(title: 'Message Details', subtitle: '${msgs.length} messages'),
         SizedBox(height: 8.h),
         if (msgs.isEmpty)
-          _InfoCard(icon: Icons.mail_lock_outlined, color: Colors.grey,
+          _InfoCard(icon: Icons.mail_lock_outlined, color: AppColors.statusIdle,
               title: 'No messages yet',
               body: 'Send a message to see its details here')
         else
@@ -362,11 +362,11 @@ class _EncryptionTab extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF0D1B2A),
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+            border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.3)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Security Standards',
-                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
             SizedBox(height: 8.h),
             ...[
               ('Key Algorithm', 'Ed25519 (256-bit)'),
@@ -377,7 +377,7 @@ class _EncryptionTab extends StatelessWidget {
             ].map((e) => Padding(
               padding: EdgeInsets.only(bottom: 4.h),
               child: Row(children: [
-                Icon(Icons.check_circle, size: 12.sp, color: Colors.green),
+                Icon(Icons.check_circle, size: 12.sp, color: AppColors.primarySurfaceDefault),
                 SizedBox(width: 6.w),
                 Text('${e.$1}: ', style: TextStyle(fontSize: 11.sp, color: Colors.white54)),
                 Expanded(child: Text(e.$2, style: TextStyle(fontSize: 11.sp, color: Colors.white))),
@@ -432,7 +432,7 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
   }
 
   Color _factorColor(double f) =>
-      f >= 0.8 ? Colors.green : f >= 0.4 ? Colors.orange : Colors.red;
+      f >= 0.8 ? AppColors.statusOnline : f >= 0.4 ? AppColors.statusPending : AppColors.statusOffline;
 
   @override
   Widget build(BuildContext context) {
@@ -485,23 +485,23 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   _ThrottleStat('Battery', '$battery%${_throttler.isCharging ? ' ⚡' : ''}',
-                      battery < 30 ? Colors.red : Colors.green),
+                      battery < 30 ? AppColors.statusOffline : AppColors.statusOnline),
                   SizedBox(width: 16.w),
                   _ThrottleStat('Interval', '${intervalSecs}s', AppColors.primarySurfaceDefault),
                   SizedBox(width: 16.w),
                   _ThrottleStat('Stationary', _throttler.isStationary ? 'Yes' : 'No',
-                      _throttler.isStationary ? Colors.orange : Colors.green),
+                      _throttler.isStationary ? AppColors.statusPending : AppColors.statusOnline),
                 ]),
                 if (rules.isNotEmpty) ...[
                   SizedBox(height: 8.h),
                   Wrap(spacing: 6.w, runSpacing: 4.h, children: rules.map((r) => Container(
                     padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.1),
+                      color: AppColors.statusPending.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.statusPending.withValues(alpha: 0.3)),
                     ),
-                    child: Text(r, style: TextStyle(fontSize: 9.sp, color: Colors.orange)),
+                    child: Text(r, style: TextStyle(fontSize: 9.sp, color: AppColors.statusPending)),
                   )).toList()),
                 ],
                 SizedBox(height: 10.h),
@@ -528,9 +528,9 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
                   Container(
                     padding: EdgeInsets.all(10.w),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.08),
+                      color: AppColors.primarySurfaceDefault.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                      border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.25)),
                     ),
                     child: Row(children: [
                       _SimStat('Scans saved',   '${_simStats!.totalScansSaved}'),
@@ -569,7 +569,7 @@ class _SimStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(child: Column(children: [
-    Text(value, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+    Text(value, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
     Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38), textAlign: TextAlign.center),
   ]));
 }
@@ -740,9 +740,9 @@ class _RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
     decoration: BoxDecoration(
-      color: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.3),
+      color: (isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2).withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(20.r),
-      border: Border.all(color: isRelay ? Colors.purple : Colors.blue),
+      border: Border.all(color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2),
     ),
     child: Text(isRelay ? 'RELAY' : 'CLIENT',
         style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -760,7 +760,7 @@ class _NodeTile extends StatelessWidget {
     final isOnline  = node.isConnected;
     final isRelay   = node.isRelay;
     final signalPct = ((node.signalStrength + 100) / 70).clamp(0.0, 1.0);
-    final battColor = node.batteryLevel > 50 ? Colors.green : node.batteryLevel > 25 ? Colors.orange : Colors.red;
+    final battColor = node.batteryLevel > 50 ? AppColors.statusOnline : node.batteryLevel > 25 ? AppColors.statusPending : AppColors.statusOffline;
 
     return Material(
       color: const Color(0xFF122033),
@@ -782,23 +782,23 @@ class _NodeTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(color: isOnline
-                ? (isRelay ? Colors.purple : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
+                ? (isRelay ? AppColors.nodeDroneBase : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
                 : Colors.white12),
           ),
           child: Row(children: [
             Stack(children: [
               CircleAvatar(
                 radius: 20.r,
-                backgroundColor: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.15),
+                backgroundColor: (isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2).withValues(alpha: 0.15),
                 child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
-                    size: 18.sp, color: isRelay ? Colors.purple : Colors.blue),
+                    size: 18.sp, color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2),
               ),
               Positioned(
                 right: 0, bottom: 0,
                 child: Container(
                   width: 10.w, height: 10.w,
                   decoration: BoxDecoration(
-                    color: isOnline ? Colors.green : Colors.grey,
+                    color: isOnline ? AppColors.statusOnline : AppColors.statusIdle,
                     shape: BoxShape.circle,
                     border: Border.all(color: const Color(0xFF122033), width: 1.5),
                   ),
@@ -812,7 +812,7 @@ class _NodeTile extends StatelessWidget {
                     style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: Colors.white),
                     overflow: TextOverflow.ellipsis)),
                 if (isRelay)
-                  _SmallChip('RELAY', Colors.purple),
+                  _SmallChip('RELAY', AppColors.nodeDroneBase),
               ]),
               SizedBox(height: 4.h),
               Row(children: [
@@ -825,7 +825,7 @@ class _NodeTile extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: signalPct, minHeight: 4.h,
                       backgroundColor: Colors.white12,
-                      color: signalPct > 0.5 ? Colors.green : Colors.orange,
+                      color: signalPct > 0.5 ? AppColors.statusOnline : AppColors.statusPending,
                     ),
                   ),
                 ),
@@ -838,7 +838,7 @@ class _NodeTile extends StatelessWidget {
             ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(isOnline ? 'Connected' : 'Offline',
-                  style: TextStyle(fontSize: 10.sp, color: isOnline ? Colors.green : Colors.grey)),
+                  style: TextStyle(fontSize: 10.sp, color: isOnline ? AppColors.statusOnline : AppColors.statusIdle)),
               SizedBox(height: 4.h),
               if (isOnline)
                 Container(
@@ -883,18 +883,18 @@ class _MessageTile extends StatelessWidget {
         color: const Color(0xFF122033),
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(color: msg.isDelivered
-            ? Colors.green.withValues(alpha: 0.3)
-            : Colors.blue.withValues(alpha: 0.3)),
+            ? AppColors.primarySurfaceDefault.withValues(alpha: 0.3)
+            : AppColors.priorityP2.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(msg.isDelivered ? Icons.check_circle : Icons.hourglass_top,
-              size: 16.sp, color: msg.isDelivered ? Colors.green : Colors.blue),
+              size: 16.sp, color: msg.isDelivered ? AppColors.statusOnline : AppColors.priorityP2),
           SizedBox(width: 8.w),
           Expanded(child: Text(msg.messageType.toUpperCase(),
               style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white))),
           _SmallChip('${msg.hopCount}/${msg.maxHops} hops',
-              hopsLeft > 0 ? Colors.blue : Colors.orange),
+              hopsLeft > 0 ? AppColors.priorityP2 : AppColors.statusPending),
         ]),
         SizedBox(height: 6.h),
         Row(children: [
@@ -916,7 +916,7 @@ class _MessageTile extends StatelessWidget {
             child: LinearProgressIndicator(
               value: ttlPct, minHeight: 4.h,
               backgroundColor: Colors.white12,
-              color: ttlPct > 0.5 ? Colors.green : ttlPct > 0.2 ? Colors.orange : Colors.red,
+              color: ttlPct > 0.5 ? AppColors.statusOnline : ttlPct > 0.2 ? AppColors.statusPending : AppColors.statusOffline,
             ),
           )),
         ]),
@@ -944,14 +944,14 @@ class _KeyCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(10.w),
       decoration: BoxDecoration(
-        color: (isLocal ? AppColors.primarySurfaceDefault : Colors.purple).withValues(alpha: 0.07),
+        color: (isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase).withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(10.r),
         border: Border.all(
-            color: (isLocal ? AppColors.primarySurfaceDefault : Colors.purple).withValues(alpha: 0.3)),
+            color: (isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase).withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         Icon(Icons.vpn_key_outlined, size: 16.sp,
-            color: isLocal ? AppColors.primarySurfaceDefault : Colors.purple),
+            color: isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase),
         SizedBox(width: 8.w),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(node.displayName,
@@ -990,16 +990,16 @@ class _PayloadInspectorState extends State<_PayloadInspector> {
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.05),
+        color: AppColors.primarySurfaceDefault.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.lock, size: 14.sp, color: Colors.green),
+          Icon(Icons.lock, size: 14.sp, color: AppColors.primarySurfaceDefault),
           SizedBox(width: 6.w),
           Text('Message — ${widget.msg.messageType}',
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.green)),
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
           const Spacer(),
           GestureDetector(
             onTap: () => setState(() => _showEncrypted = !_showEncrypted),
@@ -1014,7 +1014,7 @@ class _PayloadInspectorState extends State<_PayloadInspector> {
             borderRadius: BorderRadius.circular(6.r),
           ),
           child: Text(displayText,
-              style: TextStyle(fontSize: 10.sp, color: Colors.green.shade300, fontFamily: 'monospace')),
+              style: TextStyle(fontSize: 10.sp, color: AppColors.primarySurfaceLight, fontFamily: 'monospace')),
         ),
         SizedBox(height: 6.h),
         Row(children: [

@@ -140,7 +140,7 @@ class _ReachabilityTabState extends State<_ReachabilityTab> {
         children: [
           _InfoCard(
             icon: Icons.info_outline,
-            color: Colors.blue,
+            color: AppColors.priorityP2,
             text: 'M8.1 — BFS from supply hubs across road and river edges. Nodes unreachable by both truck AND boat are classified as Drone-Required Zones.',
           ),
           SizedBox(height: 16.h),
@@ -166,11 +166,11 @@ class _ReachabilityTabState extends State<_ReachabilityTab> {
             SizedBox(height: 20.h),
             // Summary row
             Row(children: [
-              _StatChip(label: 'Total Nodes', value: '${_data!['total_nodes']}', color: Colors.blue),
+              _StatChip(label: 'Total Nodes', value: '${_data!['total_nodes']}', color: AppColors.priorityP2),
               SizedBox(width: 10.w),
-              _StatChip(label: 'Drone Required', value: '$droneCount', color: Colors.red),
+              _StatChip(label: 'Drone Required', value: '$droneCount', color: AppColors.dangerSurfaceDefault),
               SizedBox(width: 10.w),
-              _StatChip(label: 'Ground Accessible', value: '${(_data!['total_nodes'] as int) - droneCount}', color: Colors.green),
+              _StatChip(label: 'Ground Accessible', value: '${(_data!['total_nodes'] as int) - droneCount}', color: AppColors.statusOnline),
             ]),
             SizedBox(height: 16.h),
             _SectionLabel(text: 'Zone Classification (${zones.length})', icon: Icons.place),
@@ -670,21 +670,21 @@ class _HandoffTabState extends State<_HandoffTab> {
         Container(
           padding: EdgeInsets.all(14.w),
           decoration: BoxDecoration(
-            color: Colors.purple.shade50,
+            color: AppColors.primarySurfaceTint,
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: Colors.purple.shade200),
+            border: Border.all(color: AppColors.borderActive),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                Icon(Icons.check_circle, color: AppColors.primarySurfaceDefault, size: 20),
                 SizedBox(width: 8.w),
-                Text('Protocol completed successfully', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: Colors.green.shade700)),
+                Text('Protocol completed successfully', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
               ]),
               SizedBox(height: 12.h),
               ...steps.map((s) => _buildProtocolStep(s)),
-              Divider(height: 16.h, color: Colors.purple.shade200),
+              Divider(height: 16.h, color: AppColors.borderDefault),
               _MetaRow('Receipt ID', '${r['receipt_id']}'),
               _MetaRow('Receipt Hash', '${r['receipt_hash']}…'),
               _MetaRow('Driver Sig', '${r['driver_signature']}…'),

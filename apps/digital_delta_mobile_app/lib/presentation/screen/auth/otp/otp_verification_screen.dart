@@ -261,8 +261,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                 decoration: BoxDecoration(
                   color: _remainingSeconds <= 10
-                      ? Colors.red.shade50
-                      : Colors.green.shade50,
+                      ? AppColors.dangerSurfaceTint
+                      : AppColors.primarySurfaceTint,
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Row(
@@ -272,8 +272,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                       Icons.timer_outlined,
                       size: 18.sp,
                       color: _remainingSeconds <= 10
-                          ? Colors.red.shade700
-                          : Colors.green.shade700,
+                          ? AppColors.dangerSurfaceDefault
+                          : AppColors.primarySurfaceDefault,
                     ),
                     SizedBox(width: 8.w),
                     Text(
@@ -282,8 +282,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w600,
                         color: _remainingSeconds <= 10
-                            ? Colors.red.shade700
-                            : Colors.green.shade700,
+                            ? AppColors.dangerSurfaceDefault
+                            : AppColors.primarySurfaceDefault,
                       ),
                     ),
                   ],
@@ -321,7 +321,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               Container(
                 padding: EdgeInsets.all(16.w),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.neutralSurfaceTint,
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Row(

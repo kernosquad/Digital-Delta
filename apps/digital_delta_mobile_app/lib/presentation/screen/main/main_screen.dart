@@ -65,7 +65,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surfaceWhite,
         indicatorColor: AppColors.primarySurfaceDefault.withValues(alpha: 0.1),
         destinations: [
           NavigationDestination(

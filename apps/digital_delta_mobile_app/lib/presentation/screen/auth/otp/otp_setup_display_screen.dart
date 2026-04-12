@@ -271,7 +271,7 @@ class _OtpSetupDisplayScreenState extends ConsumerState<OtpSetupDisplayScreen> {
               Container(
                 padding: EdgeInsets.all(16.w),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppColors.neutralSurfaceTint,
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Column(

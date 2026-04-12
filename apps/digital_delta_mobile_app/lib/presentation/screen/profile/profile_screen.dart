@@ -424,7 +424,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 64.sp, color: Colors.red),
+              Icon(Icons.error_outline, size: 64.sp, color: AppColors.dangerSurfaceDefault),
               SizedBox(height: 16.h),
               Text(
                 'Failed to load profile',

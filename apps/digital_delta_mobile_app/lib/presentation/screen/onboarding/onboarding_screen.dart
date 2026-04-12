@@ -22,7 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Coordinate relief logistics without internet. Digital Delta works even when networks fail.',
       icon: Icons.cloud_off_rounded,
-      color: Color(0xFF1A237E),
+      color: AppColors.nodeCommand,
       accentColor: Color(0xFF00BCD4),
     ),
     _OnboardingPage(
@@ -30,8 +30,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Military-grade encryption and time-based OTP keep your device secure offline.',
       icon: Icons.security_rounded,
-      color: Color(0xFF1B5E20),
-      accentColor: Color(0xFF4CAF50),
+      color: AppColors.primarySurfaceDark,
+      accentColor: AppColors.primarySurfaceLight,
     ),
     _OnboardingPage(
       title: 'Multi-Modal\nRoute Optimization',
@@ -39,15 +39,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'AI-powered routing across trucks, boats, and drones to reach every location.',
       icon: Icons.route_rounded,
       color: Color(0xFFE65100),
-      accentColor: Color(0xFFFF9800),
+      accentColor: AppColors.warningSurfaceDefault,
     ),
     _OnboardingPage(
       title: 'Mesh Network\nCoordination',
       description:
           'Devices sync automatically via Bluetooth mesh when internet is unavailable.',
       icon: Icons.hub_rounded,
-      color: Color(0xFF4A148C),
-      accentColor: Color(0xFF9C27B0),
+      color: AppColors.nodeDroneBase,
+      accentColor: AppColors.nodeDroneBase,
     ),
   ];
 

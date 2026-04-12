@@ -98,24 +98,24 @@ class _InventoryTab extends StatelessWidget {
         children: [
           // ── Quick stats ────────────────────────────────────────────────
           Row(children: [
-            _StatChip(icon: Icons.pending_actions, value: '${summary.pendingOperations}',  label: 'Pending',  color: Colors.orange),
+            _StatChip(icon: Icons.pending_actions, value: '${summary.pendingOperations}',  label: 'Pending',  color: AppColors.statusPending),
             SizedBox(width: 8.w),
-            _StatChip(icon: Icons.check_circle_outline, value: '${summary.syncedOperations}', label: 'Synced',  color: Colors.green),
+            _StatChip(icon: Icons.check_circle_outline, value: '${summary.syncedOperations}', label: 'Synced',  color: AppColors.statusOnline),
             SizedBox(width: 8.w),
             _StatChip(icon: Icons.warning_amber_rounded, value: '${summary.openConflicts}', label: 'Conflicts',
-                color: summary.openConflicts > 0 ? Colors.red : Colors.grey),
+                color: summary.openConflicts > 0 ? AppColors.dangerSurfaceDefault : AppColors.statusIdle),
           ]),
           SizedBox(height: 14.h),
 
           // ── Action bar ─────────────────────────────────────────────────
           _ActionRow(children: [
-            _ActionBtn(icon: Icons.add_box_outlined,   label: 'Add Item',    color: Colors.teal,
+            _ActionBtn(icon: Icons.add_box_outlined,   label: 'Add Item',    color: AppColors.primarySurfaceDefault,
                 onTap: () => _showAddDialog(context, notifier)),
-            _ActionBtn(icon: Icons.edit_outlined,      label: 'Update',      color: Colors.blue,
+            _ActionBtn(icon: Icons.edit_outlined,      label: 'Update',      color: AppColors.priorityP2,
                 onTap: snapshot.inventory.isEmpty ? null : notifier.createLocalDelta),
-            _ActionBtn(icon: Icons.sync,               label: 'Peer Sync',   color: Colors.deepPurple,
+            _ActionBtn(icon: Icons.sync,               label: 'Peer Sync',   color: AppColors.nodeDroneBase,
                 onTap: notifier.simulatePeerSync),
-            _ActionBtn(icon: Icons.flash_on_outlined,  label: 'Conflict!',   color: Colors.red,
+            _ActionBtn(icon: Icons.flash_on_outlined,  label: 'Conflict!',   color: AppColors.dangerSurfaceDefault,
                 onTap: snapshot.inventory.isEmpty ? null : notifier.injectConflict),
           ]),
           SizedBox(height: 16.h),

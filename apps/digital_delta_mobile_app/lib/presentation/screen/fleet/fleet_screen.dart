@@ -85,7 +85,7 @@ class _FleetBodyState extends State<_FleetBody> {
               _SummaryChip(
                 label: 'Total',
                 count: widget.vehicles.length,
-                color: Colors.blueGrey,
+                color: AppColors.statusIdle,
               ),
               SizedBox(width: 8.w),
               _SummaryChip(
@@ -93,7 +93,7 @@ class _FleetBodyState extends State<_FleetBody> {
                 count: widget.vehicles
                     .where((v) => v['status'] == 'in_mission')
                     .length,
-                color: Colors.green,
+                color: AppColors.statusOnline,
               ),
               SizedBox(width: 8.w),
               _SummaryChip(
@@ -101,7 +101,7 @@ class _FleetBodyState extends State<_FleetBody> {
                 count: widget.vehicles
                     .where((v) => v['status'] == 'idle')
                     .length,
-                color: Colors.blueGrey,
+                color: AppColors.statusIdle,
               ),
               SizedBox(width: 8.w),
               _SummaryChip(
@@ -109,7 +109,7 @@ class _FleetBodyState extends State<_FleetBody> {
                 count: widget.vehicles
                     .where((v) => v['status'] == 'offline')
                     .length,
-                color: Colors.red,
+                color: AppColors.statusOffline,
               ),
             ],
           ),
@@ -255,7 +255,7 @@ class _VehicleCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: 12.h),
-          Divider(height: 1, color: Colors.grey.shade200),
+          Divider(height: 1, color: AppColors.borderDefault),
           SizedBox(height: 12.h),
           _InfoRow(
             icon: Icons.person_outline,
@@ -278,10 +278,10 @@ class _VehicleCard extends StatelessWidget {
                       : Icons.local_gas_station,
                   size: 16.sp,
                   color: level > 60
-                      ? Colors.green
+                      ? AppColors.statusOnline
                       : level > 30
-                          ? Colors.orange
-                          : Colors.red,
+                          ? AppColors.statusPending
+                          : AppColors.statusOffline,
                 ),
                 SizedBox(width: 6.w),
                 Text(

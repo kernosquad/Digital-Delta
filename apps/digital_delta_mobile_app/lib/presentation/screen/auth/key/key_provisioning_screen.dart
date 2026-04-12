@@ -140,7 +140,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                 height: 100.h,
                 decoration: BoxDecoration(
                   color: _completed
-                      ? Colors.green.shade50
+                      ? AppColors.primarySurfaceTint
                       : AppColors.primarySurfaceDefault.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -150,7 +150,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                       : Icons.vpn_key_rounded,
                   size: 50.sp,
                   color: _completed
-                      ? Colors.green.shade700
+                      ? AppColors.primarySurfaceDefault
                       : AppColors.primarySurfaceDefault,
                 ),
               ),
@@ -197,7 +197,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                 Container(
                   padding: EdgeInsets.all(16.w),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppColors.neutralSurfaceTint,
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Row(
@@ -243,9 +243,9 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                 Container(
                   padding: EdgeInsets.all(16.w),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: AppColors.primarySurfaceTint,
                     borderRadius: BorderRadius.circular(12.r),
-                    border: Border.all(color: Colors.green.shade200),
+                    border: Border.all(color: AppColors.borderActive),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +255,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                           Icon(
                             Icons.key_rounded,
                             size: 18.sp,
-                            color: Colors.green.shade700,
+                            color: AppColors.primarySurfaceDefault,
                           ),
                           SizedBox(width: 8.w),
                           Text(
@@ -263,7 +263,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                             style: TextStyle(
                               fontSize: 13.sp,
                               fontWeight: FontWeight.w600,
-                              color: Colors.green.shade700,
+                              color: AppColors.primarySurfaceDefault,
                             ),
                           ),
                           const Spacer(),
@@ -272,7 +272,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                             icon: Icon(
                               Icons.copy,
                               size: 18.sp,
-                              color: Colors.green.shade700,
+                              color: AppColors.primarySurfaceDefault,
                             ),
                             tooltip: 'Copy public key',
                           ),
@@ -284,7 +284,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                         style: TextStyle(
                           fontSize: 11.sp,
                           fontFamily: 'monospace',
-                          color: Colors.green.shade900,
+                          color: AppColors.primarySurfaceDark,
                         ),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -300,7 +300,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                 Container(
                   padding: EdgeInsets.all(16.w),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF4E6),
+                    color: AppColors.warningSurfaceTint,
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Column(
@@ -311,7 +311,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                           Icon(
                             Icons.security_rounded,
                             size: 18.sp,
-                            color: Colors.orange.shade700,
+                            color: AppColors.warningSurfaceDefault,
                           ),
                           SizedBox(width: 8.w),
                           Text(
@@ -319,7 +319,7 @@ class _KeyProvisioningScreenState extends ConsumerState<KeyProvisioningScreen> {
                             style: TextStyle(
                               fontSize: 13.sp,
                               fontWeight: FontWeight.w600,
-                              color: Colors.orange.shade900,
+                              color: AppColors.warningSurfaceDefault,
                             ),
                           ),
                         ],

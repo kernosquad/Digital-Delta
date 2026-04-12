@@ -84,15 +84,15 @@ class _EdgeData {
 // ── Colour helpers ───────────────────────────────────────────────────────────
 
 Color _nodeColor(String type, bool flooded) {
-  if (flooded) return Colors.red.shade700;
+  if (flooded) return AppColors.dangerSurfaceDefault;
   return switch (type) {
-    'central_command' => const Color(0xFF1A237E),
-    'relief_camp' => const Color(0xFF2E7D32),
-    'hospital' => const Color(0xFFB71C1C),
-    'supply_drop' => const Color(0xFFE65100),
-    'drone_base' => const Color(0xFF4A148C),
-    'waypoint' => const Color(0xFF546E7A),
-    _ => const Color(0xFF455A64),
+    'central_command' => AppColors.nodeCommand,
+    'relief_camp'     => AppColors.nodeReliefCamp,
+    'hospital'        => AppColors.nodeHospital,
+    'supply_drop'     => AppColors.nodeSupplyDrop,
+    'drone_base'      => AppColors.nodeDroneBase,
+    'waypoint'        => AppColors.nodeWaypoint,
+    _                 => AppColors.nodeWaypoint,
   };
 }
 
@@ -850,13 +850,13 @@ class _MapLegend extends StatelessWidget {
           _LegendLine(color: const Color(0xFF607D8B), label: 'Road'),
           _LegendLine(color: const Color(0xFF1565C0), label: 'River'),
           _LegendLine(color: const Color(0xFF6A1B9A), label: 'Airway'),
-          _LegendLine(color: Colors.red, label: 'Flooded'),
+          _LegendLine(color: AppColors.dangerSurfaceDefault, label: 'Flooded'),
           SizedBox(height: 4.h),
-          _LegendDot(color: const Color(0xFF1A237E), label: 'Command HQ'),
-          _LegendDot(color: const Color(0xFF2E7D32), label: 'Relief Camp'),
-          _LegendDot(color: const Color(0xFFB71C1C), label: 'Hospital'),
-          _LegendDot(color: const Color(0xFFE65100), label: 'Supply Drop'),
-          _LegendDot(color: const Color(0xFF4A148C), label: 'Drone Base'),
+          _LegendDot(color: AppColors.nodeCommand,    label: 'Command HQ'),
+          _LegendDot(color: AppColors.nodeReliefCamp, label: 'Relief Camp'),
+          _LegendDot(color: AppColors.nodeHospital,   label: 'Hospital'),
+          _LegendDot(color: AppColors.nodeSupplyDrop, label: 'Supply Drop'),
+          _LegendDot(color: AppColors.nodeDroneBase,  label: 'Drone Base'),
         ],
       ),
     );

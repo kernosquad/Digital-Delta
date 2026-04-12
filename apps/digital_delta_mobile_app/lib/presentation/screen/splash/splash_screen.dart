@@ -63,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 style: TextStyle(
                   fontSize: 16.sp,
                   fontWeight: FontWeight.w400,
-                  color: Colors.black,
+                  color: AppColors.primaryTextDefault,
                   fontFamily: 'SFProDisplay',
                 ),
               ),
