@@ -12,5 +12,8 @@ class BleDeviceModel with _$BleDeviceModel {
     required int rssi,
     @Default(BleDeviceConnectionState.disconnected)
     BleDeviceConnectionState connectionState,
+
+    /// True when the device advertises the Digital Delta GATT service UUID.
+    @Default(false) bool isDigitalDeltaNode,
   }) = _BleDeviceModel;
 }

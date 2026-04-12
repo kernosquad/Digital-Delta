@@ -23,6 +23,9 @@ mixin _$BleDeviceModel {
   BleDeviceConnectionState get connectionState =>
       throw _privateConstructorUsedError;
 
+  /// True when the device advertises the Digital Delta GATT service UUID.
+  bool get isDigitalDeltaNode => throw _privateConstructorUsedError;
+
   /// Create a copy of BleDeviceModel
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -42,6 +45,7 @@ abstract class $BleDeviceModelCopyWith<$Res> {
     String name,
     int rssi,
     BleDeviceConnectionState connectionState,
+    bool isDigitalDeltaNode,
   });
 }
 
@@ -64,6 +68,7 @@ class _$BleDeviceModelCopyWithImpl<$Res, $Val extends BleDeviceModel>
     Object? name = null,
     Object? rssi = null,
     Object? connectionState = null,
+    Object? isDigitalDeltaNode = null,
   }) {
     return _then(
       _value.copyWith(
@@ -83,6 +88,10 @@ class _$BleDeviceModelCopyWithImpl<$Res, $Val extends BleDeviceModel>
                 ? _value.connectionState
                 : connectionState // ignore: cast_nullable_to_non_nullable
                       as BleDeviceConnectionState,
+            isDigitalDeltaNode: null == isDigitalDeltaNode
+                ? _value.isDigitalDeltaNode
+                : isDigitalDeltaNode // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -103,6 +112,7 @@ abstract class _$$BleDeviceModelImplCopyWith<$Res>
     String name,
     int rssi,
     BleDeviceConnectionState connectionState,
+    bool isDigitalDeltaNode,
   });
 }
 
@@ -124,6 +134,7 @@ class __$$BleDeviceModelImplCopyWithImpl<$Res>
     Object? name = null,
     Object? rssi = null,
     Object? connectionState = null,
+    Object? isDigitalDeltaNode = null,
   }) {
     return _then(
       _$BleDeviceModelImpl(
@@ -143,6 +154,10 @@ class __$$BleDeviceModelImplCopyWithImpl<$Res>
             ? _value.connectionState
             : connectionState // ignore: cast_nullable_to_non_nullable
                   as BleDeviceConnectionState,
+        isDigitalDeltaNode: null == isDigitalDeltaNode
+            ? _value.isDigitalDeltaNode
+            : isDigitalDeltaNode // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -156,6 +171,7 @@ class _$BleDeviceModelImpl implements _BleDeviceModel {
     required this.name,
     required this.rssi,
     this.connectionState = BleDeviceConnectionState.disconnected,
+    this.isDigitalDeltaNode = false,
   });
 
   @override
@@ -168,9 +184,14 @@ class _$BleDeviceModelImpl implements _BleDeviceModel {
   @JsonKey()
   final BleDeviceConnectionState connectionState;
 
+  /// True when the device advertises the Digital Delta GATT service UUID.
+  @override
+  @JsonKey()
+  final bool isDigitalDeltaNode;
+
   @override
   String toString() {
-    return 'BleDeviceModel(id: $id, name: $name, rssi: $rssi, connectionState: $connectionState)';
+    return 'BleDeviceModel(id: $id, name: $name, rssi: $rssi, connectionState: $connectionState, isDigitalDeltaNode: $isDigitalDeltaNode)';
   }
 
   @override
@@ -182,11 +203,20 @@ class _$BleDeviceModelImpl implements _BleDeviceModel {
             (identical(other.name, name) || other.name == name) &&
             (identical(other.rssi, rssi) || other.rssi == rssi) &&
             (identical(other.connectionState, connectionState) ||
-                other.connectionState == connectionState));
+                other.connectionState == connectionState) &&
+            (identical(other.isDigitalDeltaNode, isDigitalDeltaNode) ||
+                other.isDigitalDeltaNode == isDigitalDeltaNode));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, id, name, rssi, connectionState);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    rssi,
+    connectionState,
+    isDigitalDeltaNode,
+  );
 
   /// Create a copy of BleDeviceModel
   /// with the given fields replaced by the non-null parameter values.
@@ -206,6 +236,7 @@ abstract class _BleDeviceModel implements BleDeviceModel {
     required final String name,
     required final int rssi,
     final BleDeviceConnectionState connectionState,
+    final bool isDigitalDeltaNode,
   }) = _$BleDeviceModelImpl;
 
   @override
@@ -216,6 +247,10 @@ abstract class _BleDeviceModel implements BleDeviceModel {
   int get rssi;
   @override
   BleDeviceConnectionState get connectionState;
+
+  /// True when the device advertises the Digital Delta GATT service UUID.
+  @override
+  bool get isDigitalDeltaNode;
 
   /// Create a copy of BleDeviceModel
   /// with the given fields replaced by the non-null parameter values.

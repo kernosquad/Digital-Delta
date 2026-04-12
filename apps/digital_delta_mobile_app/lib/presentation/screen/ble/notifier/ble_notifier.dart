@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../data/service/ble_sync_service.dart';
+import '../../../../data/service/sync_mesh_service.dart';
 import '../../../../di/cache_module.dart';
 import '../../../../domain/enum/ble_connection_state.dart';
 import '../../../../domain/model/ble/ble_device_model.dart';
@@ -23,6 +26,7 @@ class BleNotifier extends StateNotifier<BleUiState> {
   final Map<String, StreamSubscription<BleDeviceConnectionState>> _connSubs =
       {};
   final Map<String, BleDeviceConnectionState> _connStates = {};
+  final Set<String> _syncedDevices = {};
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -85,6 +89,19 @@ class BleNotifier extends StateNotifier<BleUiState> {
         .listen((s) {
           _connStates[deviceId] = s;
           _updateDeviceConnectionState(deviceId, s);
+
+          // When connected, trigger CRDT sync automatically (M2+M3)
+          if (s == BleDeviceConnectionState.connected &&
+              !_syncedDevices.contains(deviceId)) {
+            _syncedDevices.add(deviceId);
+            _triggerCrdtSync(deviceId);
+          }
+
+          // When disconnected, mark node as disconnected in mesh
+          if (s == BleDeviceConnectionState.disconnected) {
+            _syncedDevices.remove(deviceId);
+            getIt<SyncMeshService>().markNodeDisconnected(deviceId);
+          }
         });
 
     final result = await getIt<ConnectBleDeviceUseCase>().call(
@@ -104,6 +121,21 @@ class BleNotifier extends StateNotifier<BleUiState> {
     );
   }
 
+  /// Attempt CRDT delta exchange over BLE GATT after connection (M2+M3).
+  Future<void> _triggerCrdtSync(String deviceId) async {
+    try {
+      final device = FlutterBluePlus.connectedDevices
+          .where((d) => d.remoteId.str == deviceId)
+          .toList();
+      if (device.isEmpty) return;
+
+      final bleSyncService = getIt<BleSyncService>();
+      await bleSyncService.syncWithDevice(device.first);
+    } catch (_) {
+      // BLE sync failure is non-fatal — deltas remain pending
+    }
+  }
+
   Future<void> disconnect(String deviceId) async {
     _updateDeviceConnectionState(
       deviceId,
@@ -113,10 +145,13 @@ class BleNotifier extends StateNotifier<BleUiState> {
     _connStates[deviceId] = BleDeviceConnectionState.disconnected;
     _connSubs[deviceId]?.cancel();
     _connSubs.remove(deviceId);
+    _syncedDevices.remove(deviceId);
     _updateDeviceConnectionState(
       deviceId,
       BleDeviceConnectionState.disconnected,
     );
+    // Update mesh topology
+    getIt<SyncMeshService>().markNodeDisconnected(deviceId);
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
@@ -126,6 +161,8 @@ class BleNotifier extends StateNotifier<BleUiState> {
     _scanSub = getIt<WatchBleDevicesUseCase>().call().listen((rawDevices) {
       final merged = _mergeConnStates(rawDevices);
       state = BleUiState.scanning(devices: merged);
+      // Feed discovered devices into SyncMeshService for mesh topology (M3.2)
+      getIt<SyncMeshService>().ingestNearbyDevices(merged);
     });
   }
 

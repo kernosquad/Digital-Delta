@@ -290,7 +290,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () =>
+                          Navigator.pushReplacementNamed(context, Routes.login),
                       child: Text(
                         'Sign In',
                         style: TextStyle(
