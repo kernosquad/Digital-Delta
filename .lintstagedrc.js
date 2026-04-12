@@ -7,27 +7,38 @@
 export default {
   // TypeScript and JavaScript files
   '**/*.{ts,tsx,js,jsx}': (filenames) => {
-    const escapedFilenames = filenames.map((f) => `"${f}"`).join(' ');
-    return [
-      // Run ESLint with auto-fix
-      `eslint --fix --max-warnings 0 --no-warn-ignored ${escapedFilenames}`,
-      // Format with Prettier
-      `prettier --write ${escapedFilenames}`,
-    ];
+    const commands = [];
+
+    // Route files to their app's own ESLint instance
+    const apiFiles = filenames.filter((f) => f.includes('/apps/api/'));
+    const webFiles = filenames.filter((f) => f.includes('/apps/web/'));
+
+    if (apiFiles.length > 0) {
+      const escaped = apiFiles.map((f) => `"${f}"`).join(' ');
+      commands.push(
+        `pnpm --filter api exec eslint --fix --max-warnings 0 --no-warn-ignored ${escaped}`
+      );
+    }
+    if (webFiles.length > 0) {
+      const escaped = webFiles.map((f) => `"${f}"`).join(' ');
+      commands.push(
+        `pnpm --filter web exec eslint --fix --max-warnings 0 --no-warn-ignored ${escaped}`
+      );
+    }
+
+    // Prettier runs from root for all files
+    const allEscaped = filenames.map((f) => `"${f}"`).join(' ');
+    commands.push(`prettier --write ${allEscaped}`);
+
+    return commands;
   },
 
   // JSON, Markdown, YAML files
   '**/*.{json,md,yml,yaml}': (filenames) => {
     const escapedFilenames = filenames.map((f) => `"${f}"`).join(' ');
-    return [
-      // Format with Prettier
-      `prettier --write ${escapedFilenames}`,
-    ];
+    return [`prettier --write ${escapedFilenames}`];
   },
 
   // Run type-check on TypeScript changes (workspace-wide)
-  '**/*.{ts,tsx}': () => [
-    // Type-check the entire workspace to catch cross-file errors
-    'pnpm check-types',
-  ],
+  '**/*.{ts,tsx}': () => ['pnpm check-types'],
 };
