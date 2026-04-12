@@ -121,7 +121,7 @@ export default function LoginPage() {
               message={(error as Error).message}
               type="error"
               showIcon
-              className="mb-5 rounded-lg"
+              className="mb-5! rounded-lg"
               closable
             />
           )}
