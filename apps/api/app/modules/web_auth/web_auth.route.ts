@@ -19,3 +19,12 @@ router
   })
   .prefix('/api/web/auth')
   .use(middleware.auth({ guards: ['web'] }))
+
+// ── Admin-only routes ─────────────────────────────────────────────────────────
+router
+  .group(() => {
+    router.get('/audit-logs', [WebAuthController, 'auditLogs'])
+  })
+  .prefix('/api/web/auth')
+  .use(middleware.auth({ guards: ['web'] }))
+  .use(middleware.role({ roles: ['sync_admin', 'camp_commander'] }))

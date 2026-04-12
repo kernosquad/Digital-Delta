@@ -56,7 +56,11 @@ function StatCard({
           {loading ? (
             <Skeleton.Input active size="large" className="!w-20" />
           ) : (
-            <Statistic value={value} suffix={suffix} valueStyle={{ color, fontSize: 28 }} />
+            <Statistic
+              value={value}
+              suffix={suffix}
+              styles={{ content: { color, fontSize: 28 } }}
+            />
           )}
         </div>
         <div

@@ -115,6 +115,23 @@ export class WebAuthService {
   }
 
   /**
+   * GET /api/web/auth/audit-logs
+   * Returns paginated auth audit log — sync_admin only.
+   */
+  async auditLogs(ctx: HttpContext) {
+    const { request, response } = ctx
+    const page = request.input('page', 1)
+    const perPage = Math.min(request.input('per_page', 50), 100)
+    const eventType = request.input('event_type')
+
+    const query = AuthLog.query().orderBy('id', 'desc').preload('user')
+    if (eventType) query.where('eventType', eventType)
+
+    const logs = await query.paginate(page, perPage)
+    return response.sendFormatted(logs)
+  }
+
+  /**
    * GET /api/web/auth/me
    * Returns the currently authenticated web session user.
    */

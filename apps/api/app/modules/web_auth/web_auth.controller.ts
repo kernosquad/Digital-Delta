@@ -18,4 +18,8 @@ export default class WebAuthController {
   async me(ctx: HttpContext) {
     return service.me(ctx)
   }
+
+  async auditLogs(ctx: HttpContext) {
+    return service.auditLogs(ctx)
+  }
 }
