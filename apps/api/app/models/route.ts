@@ -45,7 +45,10 @@ export default class Route extends BaseModel {
   @column()
   declare maxPayloadKg: number | null;
 
-  @column()
+  @column({
+    prepare: (v: string[] | null) => (v !== null ? JSON.stringify(v) : null),
+    consume: (v: string | null) => (v !== null ? (JSON.parse(v) as string[]) : null),
+  })
   declare allowedVehicles: string[] | null;
 
   @column.dateTime({ autoCreate: true })

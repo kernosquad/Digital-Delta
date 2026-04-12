@@ -25,7 +25,10 @@ export default class Inventory extends BaseModel {
   @column()
   declare reservedQuantity: number;
 
-  @column()
+  @column({
+    prepare: (v: Record<string, number> | null) => (v !== null ? JSON.stringify(v) : null),
+    consume: (v: string | null) => (v !== null ? (JSON.parse(v) as Record<string, number>) : null),
+  })
   declare crdtVectorClock: Record<string, number> | null;
 
   @column()
