@@ -5,14 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../datasource/local/source/connectivity_data_source.dart';
 import '../datasource/remote/util/api_client.dart';
+import 'sync_mesh_service.dart';
 
 /// Offline-first data service for fleet, network graph, dashboard stats,
 /// and mission data. Uses SharedPreferences for a 10-minute JSON cache with
 /// stale-while-revalidate: API → fresh cache → stale cache → hardcoded seed.
+///
+/// When online, also performs CRDT push/pull with the server (M2.4).
 class AppDataService {
   final ApiClient _api;
   final ConnectivityDataSource _connectivity;
   final SharedPreferences _prefs;
+  final SyncMeshService _syncMesh;
 
   static const _ttlMs = 10 * 60 * 1000; // 10 minutes
   static const _keyPrefix = 'adc_';
@@ -26,9 +30,11 @@ class AppDataService {
     required ApiClient api,
     required ConnectivityDataSource connectivity,
     required SharedPreferences prefs,
+    required SyncMeshService syncMesh,
   })  : _api = api,
         _connectivity = connectivity,
-        _prefs = prefs;
+        _prefs = prefs,
+        _syncMesh = syncMesh;
 
   // ── Cache helpers ──────────────────────────────────────────────────────────
 
@@ -124,9 +130,14 @@ class AppDataService {
       );
 
   /// Force-invalidate all caches and re-fetch from API.
-  /// Called when device transitions from offline → online.
+  /// Also performs CRDT push/pull (M2.4) when device is online.
   Future<void> syncAll() async {
     if (!await _isOnline()) return;
+
+    // ── CRDT server sync (M2.4) ───────────────────────────────────────────────
+    await _syncCrdtWithServer();
+
+    // ── Invalidate + re-fetch all REST caches ─────────────────────────────────
     for (final k in ['dashboard', 'vehicles', 'network_graph', 'missions', 'inventory']) {
       _invalidate(k);
     }
@@ -136,6 +147,71 @@ class AppDataService {
       getNetworkGraph(),
       getMissions(),
     ]);
+  }
+
+  /// Push unsynced local CRDT ops to server; pull new ops from server.
+  Future<void> _syncCrdtWithServer() async {
+    final nodeUuid = _syncMesh.localNodeUuid;
+
+    // 1. Ensure node is registered (idempotent)
+    try {
+      await _api.post('/api/sync/nodes/register', data: {
+        'node_uuid': nodeUuid,
+        'node_type': 'mobile',
+        'public_key': jsonDecode(_syncMesh.getLocalNodeIdentity())['public_key'] ?? '',
+      });
+    } on DioException catch (_) {
+      // Node may already exist (409/200 both fine); continue
+    } catch (_) {}
+
+    // 2. Push unsynced ops
+    final unsyncedOps = _syncMesh.getUnsyncedOps();
+    if (unsyncedOps.isNotEmpty) {
+      try {
+        final ops = unsyncedOps.map((op) => {
+          'operation_uuid': op['operation_uuid'],
+          'op_type': op['op_type'],
+          'entity_type': op['entity_type'],
+          'entity_id': op['entity_id'],
+          'field_name': op['field_name'],
+          'old_value': op['old_value'] != null ? jsonDecode(op['old_value'] as String) : null,
+          'new_value': jsonDecode(op['new_value'] as String),
+          'vector_clock': jsonDecode(op['vector_clock'] as String),
+          'created_at': op['created_at'],
+        }).toList();
+
+        await _api.post('/api/sync/push', data: {
+          'node_uuid': nodeUuid,
+          'operations': ops,
+        });
+
+        _syncMesh.markOpsAsSynced(
+          unsyncedOps.map((o) => o['operation_uuid'] as String).toList(),
+        );
+      } on DioException catch (_) {
+        // Push failed — keep ops pending for next sync attempt
+      } catch (_) {}
+    }
+
+    // 3. Pull new ops from server using current vector clock
+    try {
+      final vc = jsonEncode(_syncMesh.currentVectorClock);
+      final res = await _api.get(
+        '/api/sync/pull',
+        queryParameters: {'node_uuid': nodeUuid, 'vc': vc},
+      );
+      final data = res.data['data'];
+      if (data != null) {
+        final serverOps = data['operations'];
+        if (serverOps is List && serverOps.isNotEmpty) {
+          await _syncMesh.applyServerOps(
+            serverOps.map((o) => Map<String, dynamic>.from(o as Map)).toList(),
+          );
+        }
+      }
+    } on DioException catch (_) {
+      // Pull failed — local data remains; will retry next time
+    } catch (_) {}
   }
 
   // ── Seed / fallback data (real Bangladesh coordinates) ────────────────────

@@ -1099,6 +1099,139 @@ class SyncMeshService {
     });
   }
 
+  // ── Server Sync Public API (M2.4 — Online push/pull) ──────────────────────
+
+  /// The stable device-scoped UUID for this node (used as the node_uuid in
+  /// all CRDT operations and server registrations).
+  String get localNodeUuid => _localNodeUuid;
+
+  /// Current merged vector clock across all recorded operations.
+  Map<String, int> get currentVectorClock => _computeVectorClock();
+
+  /// All CRDT operations that have not yet been synced to the server
+  /// (synced_at IS NULL and not conflicted).
+  List<Map<String, dynamic>> getUnsyncedOps() {
+    final rows = _database.select(
+      'SELECT operation_uuid, sync_node_uuid, op_type, entity_type, entity_id, '
+      'field_name, old_value, new_value, vector_clock, created_at '
+      'FROM crdt_operations '
+      'WHERE synced_at IS NULL AND is_conflicted = 0 '
+      'ORDER BY datetime(created_at) ASC',
+    );
+    return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+  }
+
+  /// Mark the given operation UUIDs as synced to the server.
+  void markOpsAsSynced(List<String> uuids) {
+    if (uuids.isEmpty) return;
+    final now = DateTime.now().toIso8601String();
+    for (final uuid in uuids) {
+      _database.execute(
+        'UPDATE crdt_operations SET synced_at = ? WHERE operation_uuid = ?',
+        [now, uuid],
+      );
+    }
+    _setMetadata('last_sync_at', now);
+  }
+
+  /// Apply a batch of operations received from the server pull endpoint.
+  /// Deduplicates, detects conflicts, and applies inventory deltas.
+  Future<void> applyServerOps(List<Map<String, dynamic>> ops) async {
+    final now = DateTime.now().toIso8601String();
+
+    for (final op in ops) {
+      final opUuid = (op['operation_uuid'] as String?) ?? '';
+      if (opUuid.isEmpty) continue;
+
+      // Deduplication
+      final existing = _database.select(
+        'SELECT COUNT(*) AS c FROM crdt_operations WHERE operation_uuid = ?',
+        [opUuid],
+      );
+      if (((existing.first['c'] as int?) ?? 0) > 0) continue;
+
+      final entityType = (op['entity_type'] as String?) ?? '';
+      final entityId = op['entity_id'];
+      final fieldName = (op['field_name'] as String?) ?? '';
+      final remoteVcRaw = op['vector_clock'];
+      final remoteVc = remoteVcRaw is String
+          ? _decodeVectorClock(remoteVcRaw)
+          : (remoteVcRaw is Map
+              ? Map<String, int>.from(
+                  remoteVcRaw.map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+                )
+              : <String, int>{});
+
+      // Check for local conflict
+      final localOps = _database.select(
+        'SELECT * FROM crdt_operations '
+        'WHERE entity_type = ? AND entity_id = ? AND field_name = ? '
+        'AND sync_node_uuid = ? AND synced_at IS NULL '
+        'ORDER BY datetime(created_at) DESC LIMIT 1',
+        [entityType, entityId, fieldName, _localNodeUuid],
+      );
+
+      bool isConflicted = false;
+      if (localOps.isNotEmpty) {
+        final localVc = _decodeVectorClock(localOps.first['vector_clock'] as String);
+        isConflicted = _isConcurrent(localVc, remoteVc);
+      }
+
+      _database.execute(
+        '''
+        INSERT OR IGNORE INTO crdt_operations (
+          operation_uuid, sync_node_uuid, op_type, entity_type, entity_id,
+          field_name, old_value, new_value, vector_clock,
+          is_conflicted, is_resolved, created_at, synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        ''',
+        [
+          opUuid,
+          (op['sync_node_uuid'] ?? op['node_uuid'] ?? 'server') as String,
+          (op['op_type'] as String?) ?? 'update',
+          entityType,
+          entityId,
+          fieldName,
+          op['old_value'] is String ? op['old_value'] : jsonEncode(op['old_value']),
+          op['new_value'] is String ? op['new_value'] : jsonEncode(op['new_value']),
+          remoteVcRaw is String ? remoteVcRaw : jsonEncode(remoteVc),
+          isConflicted ? 1 : 0,
+          (op['created_at'] as String?) ?? now,
+          now,
+        ],
+      );
+
+      if (isConflicted && localOps.isNotEmpty) {
+        _database.execute(
+          '''
+          INSERT OR IGNORE INTO sync_conflicts (
+            op_a_uuid, op_b_uuid, entity_type, entity_id, field_name,
+            value_a, value_b, resolution, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+          ''',
+          [
+            localOps.first['operation_uuid'],
+            opUuid,
+            entityType,
+            entityId,
+            fieldName,
+            localOps.first['new_value'],
+            op['new_value'] is String ? op['new_value'] : jsonEncode(op['new_value']),
+            now,
+          ],
+        );
+      } else if (!isConflicted) {
+        _applyDeltaToInventory({
+          ...op,
+          'operation_uuid': opUuid,
+          'new_value': op['new_value'] is String
+              ? op['new_value']
+              : jsonEncode(op['new_value']),
+        });
+      }
+    }
+  }
+
   /// Apply a remote CRDT delta to the inventory replica.
   void _applyDeltaToInventory(Map<String, dynamic> delta) {
     if (delta['entity_type'] != 'inventory') return;
@@ -1149,9 +1282,6 @@ class SyncMeshService {
     );
     _recomputeRelayRoles();
   }
-
-  /// Get the local node UUID.
-  String get localNodeUuid => _localNodeUuid;
 
   void _expireMessages() {
     _database.execute('''

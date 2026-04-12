@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/service/sync_mesh_service.dart';
 import '../../../../di/cache_module.dart';
+import '../../../../domain/model/operations/operations_snapshot_model.dart';
 import '../state/operations_ui_state.dart';
 
 class OperationsNotifier extends StateNotifier<OperationsUiState> {
@@ -27,6 +28,16 @@ class OperationsNotifier extends StateNotifier<OperationsUiState> {
       state = OperationsUiState.loaded(snapshot: snapshot);
     } catch (e) {
       state = OperationsUiState.error(e.toString());
+    }
+  }
+
+  /// Returns the current snapshot without changing state. Used by the mesh
+  /// screen to obtain the local node identity before starting Nearby.
+  Future<OperationsSnapshot?> loadSnapshotDirect() async {
+    try {
+      return await _service.loadSnapshot();
+    } catch (_) {
+      return null;
     }
   }
 

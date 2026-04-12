@@ -9,7 +9,7 @@ import '../dashboard/dashboard_screen.dart';
 import '../fleet/fleet_screen.dart';
 import '../home/home_screen.dart';
 import '../map/map_screen.dart';
-import '../mesh/mesh_scan_screen.dart';
+import '../profile/profile_screen.dart';
 
 // ---------------------------------------------------------------------------
 // MainScreen — 5-tab shell with connectivity-triggered data sync
@@ -31,7 +31,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     DashboardScreen(),
     MapScreen(),
     FleetScreen(),
-    MeshScanScreen(),
+    ProfileScreen(),
   ];
 
   @override
@@ -105,13 +105,13 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             label: 'Fleet',
           ),
           NavigationDestination(
-            icon: Icon(Icons.hub_outlined, size: 24.sp),
+            icon: Icon(Icons.person_outline, size: 24.sp),
             selectedIcon: Icon(
-              Icons.hub,
+              Icons.person,
               size: 24.sp,
               color: AppColors.primarySurfaceDefault,
             ),
-            label: 'Mesh',
+            label: 'Profile',
           ),
         ],
       ),

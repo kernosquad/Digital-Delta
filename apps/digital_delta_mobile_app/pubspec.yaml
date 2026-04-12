@@ -112,6 +112,7 @@ dependencies:
   flutter_blue_plus: ^2.2.1
   flutter_reactive_ble: ^5.4.2
   bridgefy: ^1.1.11
+  nearby_connections: ^4.3.0
 
 dev_dependencies:
   flutter_test:

@@ -216,15 +216,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Container(
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: AppColors.infoSurface,
                     borderRadius: BorderRadius.circular(8.r),
-                    border: Border.all(color: Colors.blue.shade200),
+                    border: Border.all(color: AppColors.infoBorder),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         Icons.info_outline,
-                        color: Colors.blue.shade700,
+                        color: AppColors.infoText,
                         size: 20.sp,
                       ),
                       SizedBox(width: 8.w),
@@ -233,7 +233,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           'Registration requires internet connection',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: Colors.blue.shade900,
+                            color: AppColors.infoText,
                           ),
                         ),
                       ),

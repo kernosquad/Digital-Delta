@@ -1,17 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../core/mesh/battery_mesh_throttler.dart';
+import '../../../data/service/nearby_mesh_service.dart';
 import '../../../di/cache_module.dart';
 import '../../../domain/model/operations/operations_snapshot_model.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
 import '../dashboard/notifier/operations_notifier.dart';
 import '../dashboard/notifier/provider.dart';
-import '../../../data/service/sync_mesh_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module 3 — Ad-Hoc Mesh Network Protocol
@@ -20,11 +21,58 @@ import '../../../data/service/sync_mesh_service.dart';
 // M3.3  End-to-End encryption (relay nodes cannot read payloads)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class MeshScanScreen extends ConsumerWidget {
+class MeshScanScreen extends ConsumerStatefulWidget {
   const MeshScanScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MeshScanScreen> createState() => _MeshScanScreenState();
+}
+
+class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
+  StreamSubscription<List<MeshPeer>>? _peersSub;
+  bool _isScanning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startMesh());
+  }
+
+  Future<void> _startMesh() async {
+    if (!Platform.isAndroid) return;
+    final nearbyService = getIt<NearbyMeshService>();
+    if (nearbyService.isRunning) return;
+
+    // Load the local node identity from the already-bootstrapped SyncMeshService.
+    final snapshot =
+        await ref.read(operationsNotifierProvider.notifier).loadSnapshotDirect();
+    if (snapshot == null || !mounted) return;
+
+    setState(() => _isScanning = true);
+
+    await nearbyService.start(
+      localNodeUuid: snapshot.summary.localNodeUuid,
+      localDisplayName: snapshot.summary.localNodeName,
+    );
+
+    // Refresh the ops snapshot every time the peer list changes so the
+    // Devices tab reflects newly discovered / disconnected nodes.
+    _peersSub = nearbyService.peersStream.listen((_) {
+      if (mounted) {
+        ref.read(operationsNotifierProvider.notifier).refresh();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _peersSub?.cancel();
+    getIt<NearbyMeshService>().stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final opsState = ref.watch(operationsNotifierProvider);
 
     return DefaultTabController(
@@ -37,21 +85,42 @@ class MeshScanScreen extends ConsumerWidget {
           title: Text('Nearby Device Network',
               style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700, color: Colors.white)),
           actions: [
+            // Scanning indicator
+            if (_isScanning)
+              Padding(
+                padding: EdgeInsets.only(right: 4.w),
+                child: Tooltip(
+                  message: 'Searching for nearby devices…',
+                  child: SizedBox(
+                    width: 18.w,
+                    height: 18.w,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.tealAccent,
+                    ),
+                  ),
+                ),
+              ),
             IconButton(
               icon: Icon(Icons.chat_bubble_outline, size: 22.sp, color: Colors.white70),
-              tooltip: 'Mesh Chat',
+              tooltip: 'Open chat with first connected peer',
               onPressed: () {
-                final svc     = getIt<SyncMeshService>();
-                final peers   = svc.getKnownPeers();
-                if (peers.isEmpty) {
+                final nearbyService = getIt<NearbyMeshService>();
+                final connectedPeers = nearbyService.currentPeers
+                    .where((p) => p.isConnected)
+                    .toList();
+                if (connectedPeers.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No peers yet — inject demo peers first')),
+                    const SnackBar(
+                      content: Text('No connected peers yet — wait for a nearby device to appear.'),
+                    ),
                   );
                   return;
                 }
+                final peer = connectedPeers.first;
                 Navigator.pushNamed(context, Routes.meshChat, arguments: {
-                  'peerNodeUuid': peers.first.nodeUuid,
-                  'peerName':     peers.first.displayName,
+                  'peerNodeUuid': peer.nodeUuid,
+                  'peerName':     peer.displayName,
                 });
               },
             ),
@@ -132,12 +201,11 @@ class _TopologyTab extends StatelessWidget {
         ]),
         SizedBox(height: 14.h),
 
-        // ── Demo action row ────────────────────────────────────────────
+        // ── Action row ─────────────────────────────────────────────────
         _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.group_add_outlined,  label: 'Add Devices',  color: Colors.teal,        onTap: notifier.injectDemoPeers),
-          _DemoBtn(icon: Icons.send_outlined,       label: 'Send Msg',     color: Colors.blue,        onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,             label: 'Forward',      color: Colors.deepPurple,  onTap: notifier.relayNextMessage),
-          _DemoBtn(icon: Icons.sync,                label: 'Refresh',      color: Colors.grey,        onTap: notifier.refresh),
+          _DemoBtn(icon: Icons.send_outlined,   label: 'Queue Msg',  color: Colors.blue,       onTap: notifier.queueDemoMessage),
+          _DemoBtn(icon: Icons.forward,         label: 'Forward',    color: Colors.deepPurple, onTap: notifier.relayNextMessage),
+          _DemoBtn(icon: Icons.sync,            label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
         ]),
         SizedBox(height: 16.h),
 
@@ -149,7 +217,7 @@ class _TopologyTab extends StatelessWidget {
         _SectionHeader(title: 'Nearby Devices', subtitle: '${peers.length} found'),
         SizedBox(height: 8.h),
         if (peers.isEmpty)
-          _EmptyMesh(onInject: notifier.injectDemoPeers)
+          const _EmptyMesh()
         else
           ...peers.map((n) => Padding(
             padding: EdgeInsets.only(bottom: 8.h),
@@ -694,74 +762,105 @@ class _NodeTile extends StatelessWidget {
     final signalPct = ((node.signalStrength + 100) / 70).clamp(0.0, 1.0);
     final battColor = node.batteryLevel > 50 ? Colors.green : node.batteryLevel > 25 ? Colors.orange : Colors.red;
 
-    return Container(
-      padding: EdgeInsets.all(12.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFF122033),
+    return Material(
+      color: const Color(0xFF122033),
+      borderRadius: BorderRadius.circular(12.r),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: isOnline
-            ? (isRelay ? Colors.purple : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
-            : Colors.white12),
-      ),
-      child: Row(children: [
-        Stack(children: [
-          CircleAvatar(
-            radius: 20.r,
-            backgroundColor: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.15),
-            child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
-                size: 18.sp, color: isRelay ? Colors.purple : Colors.blue),
+        onTap: isOnline
+            ? () => Navigator.pushNamed(
+                  context,
+                  Routes.meshChat,
+                  arguments: {
+                    'peerNodeUuid': node.nodeUuid,
+                    'peerName': node.displayName,
+                  },
+                )
+            : null,
+        child: Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: isOnline
+                ? (isRelay ? Colors.purple : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
+                : Colors.white12),
           ),
-          Positioned(
-            right: 0, bottom: 0,
-            child: Container(
-              width: 10.w, height: 10.w,
-              decoration: BoxDecoration(
-                color: isOnline ? Colors.green : Colors.grey,
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF122033), width: 1.5),
+          child: Row(children: [
+            Stack(children: [
+              CircleAvatar(
+                radius: 20.r,
+                backgroundColor: (isRelay ? Colors.purple : Colors.blue).withValues(alpha: 0.15),
+                child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
+                    size: 18.sp, color: isRelay ? Colors.purple : Colors.blue),
               ),
-            ),
-          ),
-        ]),
-        SizedBox(width: 12.w),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text(node.displayName,
-                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: Colors.white),
-                overflow: TextOverflow.ellipsis)),
-            if (isRelay)
-              _SmallChip('RELAY', Colors.purple),
-          ]),
-          SizedBox(height: 4.h),
-          Row(children: [
-            Icon(Icons.signal_cellular_alt, size: 12.sp, color: Colors.white38),
-            SizedBox(width: 3.w),
-            SizedBox(
-              width: 50.w,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4.r),
-                child: LinearProgressIndicator(
-                  value: signalPct, minHeight: 4.h,
-                  backgroundColor: Colors.white12,
-                  color: signalPct > 0.5 ? Colors.green : Colors.orange,
+              Positioned(
+                right: 0, bottom: 0,
+                child: Container(
+                  width: 10.w, height: 10.w,
+                  decoration: BoxDecoration(
+                    color: isOnline ? Colors.green : Colors.grey,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF122033), width: 1.5),
+                  ),
                 ),
               ),
-            ),
-            SizedBox(width: 10.w),
-            Icon(Icons.battery_full, size: 12.sp, color: battColor),
-            SizedBox(width: 3.w),
-            Text('${node.batteryLevel.round()}%',
-                style: TextStyle(fontSize: 10.sp, color: battColor)),
+            ]),
+            SizedBox(width: 12.w),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(node.displayName,
+                    style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: Colors.white),
+                    overflow: TextOverflow.ellipsis)),
+                if (isRelay)
+                  _SmallChip('RELAY', Colors.purple),
+              ]),
+              SizedBox(height: 4.h),
+              Row(children: [
+                Icon(Icons.signal_cellular_alt, size: 12.sp, color: Colors.white38),
+                SizedBox(width: 3.w),
+                SizedBox(
+                  width: 50.w,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.r),
+                    child: LinearProgressIndicator(
+                      value: signalPct, minHeight: 4.h,
+                      backgroundColor: Colors.white12,
+                      color: signalPct > 0.5 ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Icon(Icons.battery_full, size: 12.sp, color: battColor),
+                SizedBox(width: 3.w),
+                Text('${node.batteryLevel.round()}%',
+                    style: TextStyle(fontSize: 10.sp, color: battColor)),
+              ]),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(isOnline ? 'Connected' : 'Offline',
+                  style: TextStyle(fontSize: 10.sp, color: isOnline ? Colors.green : Colors.grey)),
+              SizedBox(height: 4.h),
+              if (isOnline)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(color: Colors.teal.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.chat_bubble_outline, size: 10.sp, color: Colors.teal),
+                    SizedBox(width: 3.w),
+                    Text('Chat', style: TextStyle(fontSize: 10.sp, color: Colors.teal, fontWeight: FontWeight.w600)),
+                  ]),
+                )
+              else
+                Text('${node.signalStrength} dBm',
+                    style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
+            ]),
           ]),
-        ])),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(isOnline ? 'Connected' : 'Offline',
-              style: TextStyle(fontSize: 10.sp, color: isOnline ? Colors.green : Colors.grey)),
-          SizedBox(height: 4.h),
-          Text('${node.signalStrength} dBm',
-              style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
-        ]),
-      ]),
+        ),
+      ),
     );
   }
 }
@@ -967,34 +1066,32 @@ class _HopTile extends StatelessWidget {
 // ── Empty states ──────────────────────────────────────────────────────────
 
 class _EmptyMesh extends StatelessWidget {
-  final VoidCallback onInject;
-  const _EmptyMesh({required this.onInject});
+  const _EmptyMesh();
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: EdgeInsets.all(24.w),
+    padding: EdgeInsets.symmetric(vertical: 32.h, horizontal: 24.w),
     decoration: BoxDecoration(
       color: const Color(0xFF122033),
       borderRadius: BorderRadius.circular(12.r),
       border: Border.all(color: Colors.white12),
     ),
     child: Column(children: [
-      Icon(Icons.wifi_tethering, size: 44.sp, color: Colors.white24),
-      SizedBox(height: 10.h),
-      Text('No peers detected', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.white54)),
-      SizedBox(height: 6.h),
-      Text('No nearby devices found. Tap "Add Devices" to add demo devices.',
-          style: TextStyle(fontSize: 11.sp, color: Colors.white38), textAlign: TextAlign.center),
-      SizedBox(height: 14.h),
-      ElevatedButton.icon(
-        onPressed: onInject,
-        icon: Icon(Icons.group_add_outlined, size: 16.sp),
-        label: const Text('Add Demo Peers'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+      SizedBox(
+        width: 48.w, height: 48.w,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: Colors.tealAccent.withValues(alpha: 0.7),
         ),
+      ),
+      SizedBox(height: 16.h),
+      Text('Scanning for nearby devices',
+          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.white70)),
+      SizedBox(height: 6.h),
+      Text(
+        'Make sure Bluetooth is on.\nOther phones running Digital Delta will appear here automatically.',
+        style: TextStyle(fontSize: 11.sp, color: Colors.white38, height: 1.5),
+        textAlign: TextAlign.center,
       ),
     ]),
   );

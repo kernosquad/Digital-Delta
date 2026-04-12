@@ -45,7 +45,7 @@ List<_Card> _operationCards(BuildContext context) => [
       _Card(
         title: 'Dashboard',
         icon: Icons.dashboard_outlined,
-        color: Colors.blue,
+        color: AppColors.primarySurfaceDefault,
         onTapBuilder: (_) => () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Switch to Dashboard tab')),
@@ -56,7 +56,7 @@ List<_Card> _operationCards(BuildContext context) => [
       _Card(
         title: 'Fleet',
         icon: Icons.local_shipping_outlined,
-        color: Colors.green,
+        color: const Color(0xFF1565C0),
         onTapBuilder: (ctx) =>
             () => Navigator.pushNamed(ctx, Routes.droneDispatch),
         anyPermissions: [Permission.controlDrones, Permission.executeDelivery],
@@ -64,14 +64,14 @@ List<_Card> _operationCards(BuildContext context) => [
       _Card(
         title: 'Cargo',
         icon: Icons.inventory_2_outlined,
-        color: Colors.orange,
+        color: AppColors.warningSurfaceDefault,
         onTapBuilder: (_) => () {},
         permission: Permission.manageInventory,
       ),
       _Card(
         title: 'Delivery Scan',
         icon: Icons.qr_code_scanner,
-        color: Colors.purple,
+        color: AppColors.primarySurfaceDark,
         onTapBuilder: (ctx) =>
             () => Navigator.pushNamed(ctx, Routes.podScanner),
         permission: Permission.submitProofOfDelivery,
@@ -82,7 +82,7 @@ List<_Card> _toolCards(BuildContext context) => [
       _Card(
         title: 'Nearby Devices',
         icon: Icons.hub_rounded,
-        color: Colors.indigo,
+        color: const Color(0xFF37474F),
         onTapBuilder: (ctx) =>
             () => Navigator.pushNamed(ctx, Routes.meshNetwork),
         // All roles need offline mesh / BLE
@@ -90,14 +90,14 @@ List<_Card> _toolCards(BuildContext context) => [
       _Card(
         title: 'Security Setup',
         icon: Icons.shield_outlined,
-        color: Colors.teal,
+        color: AppColors.primarySurfaceDefault,
         onTapBuilder: (ctx) => () => Navigator.pushNamed(ctx, Routes.otpSetup),
         // All roles configure their own 2FA
       ),
       _Card(
         title: 'Device Keys',
         icon: Icons.key_rounded,
-        color: Colors.deepOrange,
+        color: AppColors.warningSurfaceDefault,
         onTapBuilder: (ctx) =>
             () => Navigator.pushNamed(ctx, Routes.keyProvision),
         // All roles manage their own device keys
@@ -105,7 +105,7 @@ List<_Card> _toolCards(BuildContext context) => [
       _Card(
         title: 'Data Sync',
         icon: Icons.sync_problem_outlined,
-        color: Colors.red,
+        color: AppColors.dangerSurfaceDefault,
         onTapBuilder: (_) => () {},
         anyPermissions: [
           Permission.resolveCRDTConflicts,
@@ -212,7 +212,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.local_shipping,
                       value: '…',
                       label: 'Active Vehicles',
-                      color: Colors.blue,
+                      color: const Color(0xFF1565C0),
                     ),
                   ),
                   SizedBox(width: 12.w),
@@ -221,7 +221,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.task_alt,
                       value: '…',
                       label: 'Active Missions',
-                      color: Colors.green,
+                      color: AppColors.primarySurfaceDefault,
                     ),
                   ),
                 ],
@@ -233,7 +233,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.local_shipping,
                       value: '?',
                       label: 'Active Vehicles',
-                      color: Colors.blueGrey,
+                      color: AppColors.secondaryTextDefault,
                     ),
                   ),
                   SizedBox(width: 12.w),
@@ -242,7 +242,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.task_alt,
                       value: '?',
                       label: 'Active Missions',
-                      color: Colors.blueGrey,
+                      color: AppColors.secondaryTextDefault,
                     ),
                   ),
                 ],
@@ -254,7 +254,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.local_shipping,
                       value: '${snap.activeVehicles}',
                       label: 'Active Vehicles',
-                      color: Colors.blue,
+                      color: const Color(0xFF1565C0),
                     ),
                   ),
                   SizedBox(width: 12.w),
@@ -265,7 +265,9 @@ class HomeScreen extends ConsumerWidget {
                           : Icons.task_alt,
                       value: '${snap.activeMissions}',
                       label: 'Active Missions',
-                      color: snap.slaBreached > 0 ? Colors.red : Colors.green,
+                      color: snap.slaBreached > 0
+                          ? AppColors.dangerSurfaceDefault
+                          : AppColors.primarySurfaceDefault,
                     ),
                   ),
                 ],

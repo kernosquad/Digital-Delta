@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../data/service/nearby_mesh_service.dart';
 import '../../../data/service/sync_mesh_service.dart';
 import '../../../di/cache_module.dart';
-import '../../../domain/model/ble/ble_device_model.dart';
 import '../../../domain/model/operations/operations_snapshot_model.dart';
 import '../../theme/color.dart';
-import '../ble/notifier/provider.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -47,19 +46,33 @@ class _ChatState {
 class _ChatNotifier extends StateNotifier<_ChatState> {
   _ChatNotifier(this._peerUuid) : super(const _ChatState()) {
     _init();
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _refresh());
+    // Poll SQLite for messages (catches store-and-forward arrivals too).
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
+    // Also subscribe to real-time Nearby messages.
+    _msgSub = getIt<NearbyMeshService>().incomingMessageStream.listen((msg) {
+      if (msg.senderNodeUuid == _peerUuid) _refresh();
+    });
+    // Track live connection status.
+    _peersSub = getIt<NearbyMeshService>().peersStream.listen((peers) {
+      final connected = peers.any(
+        (p) => p.nodeUuid == _peerUuid && p.isConnected,
+      );
+      if (mounted) state = state.copyWith(isConnected: connected);
+    });
+    // Seed initial connection state.
+    _updateConnectionFromNearby();
   }
 
   final String _peerUuid;
   Timer? _timer;
+  StreamSubscription<IncomingChatMessage>? _msgSub;
+  StreamSubscription<List<MeshPeer>>? _peersSub;
 
   void _init() {
     final svc = getIt<SyncMeshService>();
     final peers = svc.getKnownPeers();
-    final peer = peers.where((p) => p.nodeUuid == _peerUuid).toList();
-    final peerName = peer.isNotEmpty
-        ? peer.first.displayName
-        : 'Nearby peer';
+    final match = peers.where((p) => p.nodeUuid == _peerUuid);
+    final peerName = match.isNotEmpty ? match.first.displayName : 'Nearby peer';
     svc.markMessagesRead(_peerUuid);
     state = state.copyWith(
       peerName: peerName,
@@ -67,32 +80,44 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     );
   }
 
+  void _updateConnectionFromNearby() {
+    final connected =
+        getIt<NearbyMeshService>().isNodeConnected(_peerUuid);
+    if (mounted) state = state.copyWith(isConnected: connected);
+  }
+
   void _refresh() {
     if (!mounted) return;
     final svc = getIt<SyncMeshService>();
-    final messages = svc.getChatMessages(_peerUuid);
     svc.markMessagesRead(_peerUuid);
-    state = state.copyWith(messages: messages);
+    state = state.copyWith(messages: svc.getChatMessages(_peerUuid));
   }
 
   Future<void> send(String content) async {
     if (content.trim().isEmpty) return;
     state = state.copyWith(isSending: true);
     try {
-      await getIt<SyncMeshService>().sendChatMessage(_peerUuid, content.trim());
+      final text = content.trim();
+      // Always persist locally first (store-and-forward fallback).
+      await getIt<SyncMeshService>().sendChatMessage(_peerUuid, text);
+      // If peer is directly connected, deliver immediately via Nearby.
+      await getIt<NearbyMeshService>().sendChatTo(_peerUuid, text);
     } finally {
       _refresh();
       state = state.copyWith(isSending: false);
     }
   }
 
+  // Legacy: called from BLE notifier listener (still wired in the screen).
   void updateConnection(bool connected) {
-    state = state.copyWith(isConnected: connected);
+    if (mounted) state = state.copyWith(isConnected: connected);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _msgSub?.cancel();
+    _peersSub?.cancel();
     super.dispose();
   }
 }
@@ -143,32 +168,7 @@ class _MeshChatScreenState extends ConsumerState<MeshChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(_chatProvider(widget.peerNodeUuid));
-    final bleState = ref.watch(bleNotifierProvider);
-
-    // Determine if this peer is currently connected via BLE
-    final connectedDevices = bleState.maybeWhen(
-      scanning: (d) => d,
-      idle: (d) => d,
-      orElse: () => <dynamic>[],
-    );
-    final isConnected = connectedDevices.any(
-      (d) => d.id == widget.peerNodeUuid && d.connectionState.isConnected,
-    );
-
-    ref.listen(bleNotifierProvider, (_, __) {
-      final latest = ref.read(bleNotifierProvider);
-      final devices = latest.maybeWhen(
-        scanning: (d) => d,
-        idle: (d) => d,
-        orElse: () => <BleDeviceModel>[],
-      );
-      final connected = devices.any(
-        (d) => d.id == widget.peerNodeUuid && d.connectionState.isConnected,
-      );
-      ref
-          .read(_chatProvider(widget.peerNodeUuid).notifier)
-          .updateConnection(connected);
-    });
+    final isConnected = chatState.isConnected;
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 

@@ -49,6 +49,12 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Digital Delta needs local network access to discover and connect to nearby devices for mesh networking.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_NearbyConnections._tcp</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
