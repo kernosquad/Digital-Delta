@@ -1,59 +1,68 @@
-import { BaseModel, belongsTo, column } from '@adonisjs/lucid/orm';
+import { BaseModel, belongsTo, column } from '@adonisjs/lucid/orm'
 
-import type { BelongsTo } from '@adonisjs/lucid/types/relations';
-import type { DateTime } from 'luxon';
+import type { BelongsTo } from '@adonisjs/lucid/types/relations'
+import type { DateTime } from 'luxon'
 
-import SyncNode from '#models/sync_node';
+import SyncNode from '#models/sync_node'
 
-export type CrdtOpType = 'increment' | 'decrement' | 'set' | 'delete' | 'merge';
+export type CrdtOpType = 'increment' | 'decrement' | 'set' | 'delete' | 'merge'
 
 export default class CrdtOperation extends BaseModel {
-  static table = 'crdt_operations';
-  static updatedAt = false as const;
+  static table = 'crdt_operations'
+  static updatedAt = false as const
 
   @column({ isPrimary: true })
-  declare id: number;
+  declare id: number
 
   @column()
-  declare operationUuid: string;
+  declare operationUuid: string
 
   @column()
-  declare syncNodeId: number;
+  declare syncNodeId: number
 
   @column()
-  declare opType: CrdtOpType;
+  declare opType: CrdtOpType
 
   @column()
-  declare entityType: string;
+  declare entityType: string
 
   @column()
-  declare entityId: number;
+  declare entityId: number
 
   @column()
-  declare fieldName: string;
+  declare fieldName: string
+
+  @column({
+    prepare: (v: unknown) => (v !== null && v !== undefined ? JSON.stringify(v) : null),
+    consume: (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v),
+  })
+  declare oldValue: unknown | null
+
+  @column({
+    prepare: (v: unknown) => JSON.stringify(v),
+    consume: (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v),
+  })
+  declare newValue: unknown
+
+  @column({
+    prepare: (v: unknown) => JSON.stringify(v),
+    consume: (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v),
+  })
+  declare vectorClock: Record<string, number>
 
   @column()
-  declare oldValue: unknown | null;
+  declare isConflicted: boolean
 
   @column()
-  declare newValue: unknown;
-
-  @column()
-  declare vectorClock: Record<string, number>;
-
-  @column()
-  declare isConflicted: boolean;
-
-  @column()
-  declare isResolved: boolean;
+  declare isResolved: boolean
 
   @column.dateTime()
-  declare createdAt: DateTime;
+  declare createdAt: DateTime
 
   @column.dateTime()
-  declare syncedAt: DateTime | null;
+  declare syncedAt: DateTime | null
 
   // ── Relations ──────────────────────────────────────────────────────────
   @belongsTo(() => SyncNode)
-  declare syncNode: BelongsTo<typeof SyncNode>;
+  declare syncNode: BelongsTo<typeof SyncNode>
 }

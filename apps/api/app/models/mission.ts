@@ -1,13 +1,13 @@
-import { BaseModel, belongsTo, column, hasMany } from '@adonisjs/lucid/orm';
+import { BaseModel, belongsTo, column, hasMany } from '@adonisjs/lucid/orm'
 
-import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations';
-import type { DateTime } from 'luxon';
+import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
+import type { DateTime } from 'luxon'
 
-import Location from '#models/location';
-import MissionCargo from '#models/mission_cargo';
-import MissionRouteLeg from '#models/mission_route_leg';
-import User from '#models/user';
-import Vehicle from '#models/vehicle';
+import Location from '#models/location'
+import MissionCargo from '#models/mission_cargo'
+import MissionRouteLeg from '#models/mission_route_leg'
+import User from '#models/user'
+import Vehicle from '#models/vehicle'
 
 export type MissionStatus =
   | 'planned'
@@ -16,92 +16,92 @@ export type MissionStatus =
   | 'completed'
   | 'failed'
   | 'preempted'
-  | 'cancelled';
+  | 'cancelled'
 
-export type PriorityClass = 'p0_critical' | 'p1_high' | 'p2_standard' | 'p3_low';
+export type PriorityClass = 'p0_critical' | 'p1_high' | 'p2_standard' | 'p3_low'
 
 export default class Mission extends BaseModel {
-  static table = 'missions';
+  static table = 'missions'
 
   @column({ isPrimary: true })
-  declare id: number;
+  declare id: number
 
   @column()
-  declare missionCode: string;
+  declare missionCode: string
 
   @column()
-  declare status: MissionStatus;
+  declare status: MissionStatus
 
   @column()
-  declare priorityClass: PriorityClass;
+  declare priorityClass: PriorityClass
 
   @column()
-  declare originLocationId: number;
+  declare originLocationId: number
 
   @column()
-  declare destinationLocationId: number;
+  declare destinationLocationId: number
 
   @column()
-  declare vehicleId: number;
+  declare vehicleId: number | null
 
   @column()
-  declare driverId: number | null;
+  declare driverId: number | null
 
   @column()
-  declare createdById: number | null;
+  declare createdById: number | null
 
   @column()
-  declare totalPayloadKg: number;
+  declare totalPayloadKg: number
 
   @column.dateTime()
-  declare slaDeadline: DateTime;
+  declare slaDeadline: DateTime
 
   @column()
-  declare slaBreached: boolean;
+  declare slaBreached: boolean
 
   @column.dateTime()
-  declare estimatedArrival: DateTime | null;
+  declare estimatedArrival: DateTime | null
 
   @column.dateTime()
-  declare actualArrival: DateTime | null;
+  declare actualArrival: DateTime | null
 
   @column()
-  declare preemptionReason: string | null;
+  declare preemptionReason: string | null
 
   @column()
-  declare preemptedByMissionId: number | null;
+  declare preemptedByMissionId: number | null
 
   @column()
-  declare notes: string | null;
+  declare notes: string | null
 
   @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime;
+  declare createdAt: DateTime
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime | null;
+  declare updatedAt: DateTime | null
 
   // ── Relations ──────────────────────────────────────────────────────────
   @belongsTo(() => Location, { foreignKey: 'originLocationId' })
-  declare originLocation: BelongsTo<typeof Location>;
+  declare originLocation: BelongsTo<typeof Location>
 
   @belongsTo(() => Location, { foreignKey: 'destinationLocationId' })
-  declare destinationLocation: BelongsTo<typeof Location>;
+  declare destinationLocation: BelongsTo<typeof Location>
 
   @belongsTo(() => Vehicle)
-  declare vehicle: BelongsTo<typeof Vehicle>;
+  declare vehicle: BelongsTo<typeof Vehicle>
 
   @belongsTo(() => User, { foreignKey: 'driverId' })
-  declare driver: BelongsTo<typeof User>;
+  declare driver: BelongsTo<typeof User>
 
   @belongsTo(() => User, { foreignKey: 'createdById' })
-  declare createdBy: BelongsTo<typeof User>;
+  declare createdBy: BelongsTo<typeof User>
 
   @belongsTo(() => Mission, { foreignKey: 'preemptedByMissionId' })
-  declare preemptedByMission: BelongsTo<typeof Mission>;
+  declare preemptedByMission: BelongsTo<typeof Mission>
 
   @hasMany(() => MissionCargo)
-  declare cargo: HasMany<typeof MissionCargo>;
+  declare cargo: HasMany<typeof MissionCargo>
 
   @hasMany(() => MissionRouteLeg)
-  declare routeLegs: HasMany<typeof MissionRouteLeg>;
+  declare routeLegs: HasMany<typeof MissionRouteLeg>
 }
