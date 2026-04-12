@@ -236,6 +236,7 @@ export default function AuditPage() {
         }}
         size="small"
         scroll={{ x: 800 }}
+        className="pagination"
       />
     </div>
   );

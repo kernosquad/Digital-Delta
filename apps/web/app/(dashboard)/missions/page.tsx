@@ -309,6 +309,7 @@ export default function MissionsPage() {
         size="middle"
         scroll={{ x: 750 }}
         rowClassName={(m: Mission) => (m.sla_breached ? 'bg-red-50!' : '')}
+        className="pagination"
       />
 
       {/* ── Create Mission Drawer ───────────────────────────────── */}

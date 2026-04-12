@@ -226,6 +226,7 @@ export default function SensorsPage() {
             rowClassName={(p: RoutePrediction) =>
               p.impassability_probability > 0.7 ? 'bg-red-50!' : ''
             }
+            className="pagination"
           />
         </div>
       )}
@@ -242,6 +243,7 @@ export default function SensorsPage() {
         size="small"
         pagination={{ pageSize: 20, showSizeChanger: true }}
         scroll={{ x: 600 }}
+        className="pagination"
       />
 
       {/* ── Ingest Modal ─────────────────────────────────────────── */}

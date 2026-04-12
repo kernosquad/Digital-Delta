@@ -219,6 +219,10 @@ const AntDesignProvider = ({ children }: React.PropsWithChildren) => {
               headerBorderRadius: 10,
               headerColor: 'var(--color-dd-gray-750)',
               rowHoverBg: 'var(--color-dd-gray-50)',
+              headerSortActiveBg: 'var(--color-dd-gray-50)',
+              headerSortHoverBg: 'var(--color-dd-gray-100)',
+              bodySortBg: 'var(--color-dd-gray-25)',
+              fixedHeaderSortActiveBg: 'var(--color-dd-gray-50)',
             },
             Tag: {
               defaultBg: 'var(--color-white)',

@@ -182,6 +182,7 @@ export default function UsersPage() {
         loading={isLoading}
         pagination={{ pageSize: 25, showSizeChanger: true }}
         size="middle"
+        className="pagination"
       />
     </div>
   );

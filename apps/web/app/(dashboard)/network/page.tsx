@@ -321,6 +321,7 @@ export default function NetworkPage() {
         rowClassName={(e: NetworkEdge) =>
           e.is_flooded ? 'bg-red-50!' : e.is_blocked ? 'bg-orange-50!' : ''
         }
+        className="pagination"
       />
 
       {/* ── Create Edge Modal ──────────────────────────────────── */}

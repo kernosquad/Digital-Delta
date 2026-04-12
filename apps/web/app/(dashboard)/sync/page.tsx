@@ -265,7 +265,7 @@ export default function SyncPage() {
         pagination={{ pageSize: 10 }}
         scroll={{ x: 800 }}
         rowClassName={(c: SyncConflict) => (c.status === 'pending' ? 'bg-orange-50!' : '')}
-        className="mb-6"
+        className="pagination mb-6"
       />
 
       {/* Nodes table */}

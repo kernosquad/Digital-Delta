@@ -332,7 +332,7 @@ export default function SupplyPage() {
               ? 'bg-dd-red-25!'
               : ''
           }
-          className="mb-8"
+          className="pagination mb-8"
         />
       )}
 
@@ -353,6 +353,7 @@ export default function SupplyPage() {
           size="small"
           pagination={{ pageSize: 10, showSizeChanger: true }}
           scroll={{ x: 600 }}
+          className="pagination"
         />
       )}
 

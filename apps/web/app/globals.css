@@ -134,3 +134,13 @@ a, button, input, select, textarea, [role='button'] {
 @layer base {
   .container { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
 }
+
+/* ─── Table pagination active item ──────────────────────────────────────── */
+/* Specificity 0,3,0 — beats Ant Design's hash-scoped .css-hash .dd-pagination .dd-item rule */
+.dd-table-wrapper.pagination .dd-pagination-item-active {
+  border: none !important;
+}
+
+.dd-table-wrapper.pagination .dd-pagination-item-active a {
+  color: #ffffff !important;
+}

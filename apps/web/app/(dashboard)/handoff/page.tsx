@@ -238,6 +238,7 @@ export default function HandoffPage() {
         scroll={{ x: 700 }}
         pagination={{ pageSize: 20 }}
         rowClassName={(h: Handoff) => (h.status === 'scheduled' ? 'bg-blue-50!' : '')}
+        className="pagination"
       />
 
       {/* ── Schedule Handoff Drawer ──────────────────────────── */}

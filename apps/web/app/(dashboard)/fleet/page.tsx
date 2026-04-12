@@ -289,6 +289,7 @@ export default function FleetPage() {
           pagination={{ pageSize: 15, showSizeChanger: true }}
           size="middle"
           scroll={{ x: 600 }}
+          className="pagination"
         />
       )}
     </div>
