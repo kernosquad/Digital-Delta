@@ -8,7 +8,12 @@ router
   .group(() => {
     router.get('/', [VehiclesController, 'index'])
     router.get('/:id', [VehiclesController, 'show'])
-    router.patch('/:id', [VehiclesController, 'update'])
+    // Vehicle status updates: drone_operator (their own drone), managers, sync_admin
+    router.patch('/:id', [VehiclesController, 'update']).use(
+      middleware.role({
+        roles: ['drone_operator', 'supply_manager', 'camp_commander', 'sync_admin'],
+      })
+    )
     router
       .group(() => {
         router.post('/', [VehiclesController, 'store'])

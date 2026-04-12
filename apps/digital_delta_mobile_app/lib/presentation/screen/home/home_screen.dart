@@ -2,21 +2,140 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../core/security/rbac.dart';
+import '../../../core/security/rbac_provider.dart';
 import '../../connectivity/notifier/provider.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
+
+// ---------------------------------------------------------------------------
+// Feature-card descriptor
+// ---------------------------------------------------------------------------
+
+class _Card {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback Function(BuildContext context) onTapBuilder;
+  final Permission? permission;
+  final List<Permission>? anyPermissions;
+
+  const _Card({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTapBuilder,
+    this.permission,
+    this.anyPermissions,
+  });
+
+  bool visibleFor(RBACGuard guard) {
+    if (permission != null) return guard.can(permission!);
+    if (anyPermissions != null) return guard.canAny(anyPermissions!);
+    return true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Card definitions
+// ---------------------------------------------------------------------------
+
+List<_Card> _operationCards(BuildContext context) => [
+      _Card(
+        title: 'Dashboard',
+        icon: Icons.dashboard_outlined,
+        color: Colors.blue,
+        onTapBuilder: (_) => () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Switch to Dashboard tab')),
+          );
+        },
+        // ALL roles have readSupplyData / readRouteData
+      ),
+      _Card(
+        title: 'Fleet',
+        icon: Icons.local_shipping_outlined,
+        color: Colors.green,
+        onTapBuilder: (ctx) =>
+            () => Navigator.pushNamed(ctx, Routes.droneDispatch),
+        anyPermissions: [Permission.controlDrones, Permission.executeDelivery],
+      ),
+      _Card(
+        title: 'Cargo',
+        icon: Icons.inventory_2_outlined,
+        color: Colors.orange,
+        onTapBuilder: (_) => () {},
+        permission: Permission.manageInventory,
+      ),
+      _Card(
+        title: 'PoD Scanner',
+        icon: Icons.qr_code_scanner,
+        color: Colors.purple,
+        onTapBuilder: (ctx) =>
+            () => Navigator.pushNamed(ctx, Routes.podScanner),
+        permission: Permission.submitProofOfDelivery,
+      ),
+    ];
+
+List<_Card> _toolCards(BuildContext context) => [
+      _Card(
+        title: 'Mesh & BLE',
+        icon: Icons.hub_rounded,
+        color: Colors.indigo,
+        onTapBuilder: (ctx) =>
+            () => Navigator.pushNamed(ctx, Routes.meshNetwork),
+        // All roles need offline mesh / BLE
+      ),
+      _Card(
+        title: 'OTP Setup',
+        icon: Icons.shield_outlined,
+        color: Colors.teal,
+        onTapBuilder: (ctx) => () => Navigator.pushNamed(ctx, Routes.otpSetup),
+        // All roles configure their own 2FA
+      ),
+      _Card(
+        title: 'Key Provision',
+        icon: Icons.key_rounded,
+        color: Colors.deepOrange,
+        onTapBuilder: (ctx) =>
+            () => Navigator.pushNamed(ctx, Routes.keyProvision),
+        // All roles manage their own device keys
+      ),
+      _Card(
+        title: 'Sync Admin',
+        icon: Icons.sync_problem_outlined,
+        color: Colors.red,
+        onTapBuilder: (_) => () {},
+        anyPermissions: [
+          Permission.resolveCRDTConflicts,
+          Permission.manageSyncNodes,
+        ],
+      ),
+    ];
+
+// ---------------------------------------------------------------------------
+// HomeScreen
+// ---------------------------------------------------------------------------
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final guard = ref.watch(rbacGuardProvider);
+    final role = ref.watch(currentRoleProvider);
     final connectivity = ref.watch(connectivityNotifierProvider);
+
     final syncInfo = connectivity.when(
       initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
       online: (_) => ('Online', Colors.green, Icons.cloud_done),
       offline: () => ('Offline', Colors.orange, Icons.cloud_off),
     );
+
+    final opCards =
+        _operationCards(context).where((c) => c.visibleFor(guard)).toList();
+    final toolCards =
+        _toolCards(context).where((c) => c.visibleFor(guard)).toList();
 
     return Scaffold(
       backgroundColor: AppColors.colorBackground,
@@ -26,6 +145,30 @@ class HomeScreen extends ConsumerWidget {
           style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700),
         ),
         actions: [
+          // Role badge
+          Container(
+            margin: EdgeInsets.only(right: 8.w),
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+            decoration: BoxDecoration(
+              color: _roleColor(role).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20.r),
+            ),
+            child: Row(
+              children: [
+                Icon(_roleIcon(role), size: 13.sp, color: _roleColor(role)),
+                SizedBox(width: 4.w),
+                Text(
+                  role.displayName,
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.w600,
+                    color: _roleColor(role),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Connectivity badge
           Container(
             margin: EdgeInsets.only(right: 16.w),
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
@@ -55,26 +198,10 @@ class HomeScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome Section
-            Text(
-              'Welcome to Digital Delta',
-              style: TextStyle(
-                fontSize: 24.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryTextDefault,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Resilient Logistics & Disaster Response System',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.secondaryTextDefault,
-              ),
-            ),
+            _WelcomeBanner(role: role),
             SizedBox(height: 24.h),
 
-            // Quick Stats
+            // Quick stats
             Row(
               children: [
                 Expanded(
@@ -98,102 +225,138 @@ class HomeScreen extends ConsumerWidget {
             ),
             SizedBox(height: 24.h),
 
-            // Main Features
-            Text(
-              'Operations',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryTextDefault,
+            // Operations cards (role-filtered)
+            if (opCards.isNotEmpty) ...[
+              Text(
+                'Operations',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryTextDefault,
+                ),
               ),
-            ),
-            SizedBox(height: 12.h),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12.w,
-              mainAxisSpacing: 12.h,
-              childAspectRatio: 1.1,
-              children: [
-                _FeatureCard(
-                  title: 'Dashboard',
-                  icon: Icons.dashboard_outlined,
-                  color: Colors.blue,
-                  onTap: () {
-                    // Navigate to dashboard tab in main screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Switch to Dashboard tab')),
-                    );
-                  },
-                ),
-                _FeatureCard(
-                  title: 'Fleet',
-                  icon: Icons.local_shipping_outlined,
-                  color: Colors.green,
-                  onTap: () {},
-                ),
-                _FeatureCard(
-                  title: 'Cargo',
-                  icon: Icons.inventory_2_outlined,
-                  color: Colors.orange,
-                  onTap: () {},
-                ),
-                _FeatureCard(
-                  title: 'PoD Scanner',
-                  icon: Icons.qr_code_scanner,
-                  color: Colors.purple,
-                  onTap: () => Navigator.pushNamed(context, Routes.podScanner),
-                ),
-              ],
-            ),
-            SizedBox(height: 24.h),
+              SizedBox(height: 12.h),
+              _CardGrid(cards: opCards),
+              SizedBox(height: 24.h),
+            ],
 
-            // Tools & Settings
-            Text(
-              'Tools & Settings',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryTextDefault,
+            // Tools & settings (role-filtered)
+            if (toolCards.isNotEmpty) ...[
+              Text(
+                'Tools & Settings',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryTextDefault,
+                ),
               ),
-            ),
-            SizedBox(height: 12.h),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12.w,
-              mainAxisSpacing: 12.h,
-              childAspectRatio: 1.1,
-              children: [
-                _FeatureCard(
-                  title: 'Mesh & BLE',
-                  icon: Icons.hub_rounded,
-                  color: Colors.indigo,
-                  onTap: () => Navigator.pushNamed(context, Routes.meshNetwork),
-                ),
-                _FeatureCard(
-                  title: 'OTP Setup',
-                  icon: Icons.shield_outlined,
-                  color: Colors.teal,
-                  onTap: () => Navigator.pushNamed(context, Routes.otpSetup),
-                ),
-                _FeatureCard(
-                  title: 'Key Provision',
-                  icon: Icons.key_rounded,
-                  color: Colors.deepOrange,
-                  onTap: () =>
-                      Navigator.pushNamed(context, Routes.keyProvision),
-                ),
-              ],
-            ),
+              SizedBox(height: 12.h),
+              _CardGrid(cards: toolCards),
+            ],
           ],
         ),
       ),
     );
   }
+
+  Color _roleColor(UserRole role) => switch (role) {
+        UserRole.fieldVolunteer => Colors.green,
+        UserRole.supplyManager => Colors.blue,
+        UserRole.droneOperator => Colors.indigo,
+        UserRole.campCommander => Colors.orange,
+        UserRole.syncAdmin => Colors.red,
+      };
+
+  IconData _roleIcon(UserRole role) => switch (role) {
+        UserRole.fieldVolunteer => Icons.person_pin_outlined,
+        UserRole.supplyManager => Icons.inventory_2_outlined,
+        UserRole.droneOperator => Icons.air_outlined,
+        UserRole.campCommander => Icons.campaign_outlined,
+        UserRole.syncAdmin => Icons.admin_panel_settings_outlined,
+      };
 }
+
+// ---------------------------------------------------------------------------
+// Welcome banner
+// ---------------------------------------------------------------------------
+
+class _WelcomeBanner extends StatelessWidget {
+  final UserRole role;
+  const _WelcomeBanner({required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Welcome, ${role.displayName}',
+          style: TextStyle(
+            fontSize: 24.sp,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryTextDefault,
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          _subtitle(role),
+          style: TextStyle(
+            fontSize: 13.sp,
+            color: AppColors.secondaryTextDefault,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _subtitle(UserRole role) => switch (role) {
+        UserRole.fieldVolunteer =>
+          'Submit deliveries, update location & stay connected offline.',
+        UserRole.supplyManager =>
+          'Manage inventory, approve deliveries & coordinate routes.',
+        UserRole.droneOperator =>
+          'Control drones, track airspace & execute last-mile drops.',
+        UserRole.campCommander =>
+          'Oversee camp resources, triage priorities & fleet dispatch.',
+        UserRole.syncAdmin =>
+          'Full access — resolve CRDT conflicts, manage sync nodes & users.',
+      };
+}
+
+// ---------------------------------------------------------------------------
+// Grid helper
+// ---------------------------------------------------------------------------
+
+class _CardGrid extends StatelessWidget {
+  final List<_Card> cards;
+  const _CardGrid({required this.cards});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12.w,
+      mainAxisSpacing: 12.h,
+      childAspectRatio: 1.1,
+      children: cards
+          .map(
+            (c) => _FeatureCard(
+              title: c.title,
+              icon: c.icon,
+              color: c.color,
+              onTap: c.onTapBuilder(context),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable stat + feature-card widgets
+// ---------------------------------------------------------------------------
 
 class _QuickStatCard extends StatelessWidget {
   final IconData icon;

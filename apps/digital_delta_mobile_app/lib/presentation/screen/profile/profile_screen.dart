@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../core/security/rbac.dart';
+import '../../../core/security/rbac_provider.dart';
 import '../../common/widget/custom_button.dart';
+import '../../common/widget/role_gate.dart';
 import '../../theme/color.dart';
 import '../../util/routes.dart';
 import '../auth/notifier/provider.dart';
@@ -202,22 +205,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   SizedBox(height: 12.h),
                   _ProfileMenuItem(
                     icon: Icons.shield_outlined,
-                    title: 'OTP Setup',
-                    subtitle: 'Configure two-factor authentication',
+                    title: 'Security Setup',
+                    subtitle: 'Set up your login verification code',
                     onTap: () => Navigator.pushNamed(context, Routes.otpSetup),
                   ),
                   SizedBox(height: 8.h),
                   _ProfileMenuItem(
                     icon: Icons.verified_user_outlined,
-                    title: 'Verify OTP',
-                    subtitle: 'Verify your authenticator code',
+                    title: 'Verify Security Code',
+                    subtitle: 'Confirm your verification code works',
                     onTap: () => Navigator.pushNamed(context, Routes.otpVerify),
                   ),
                   SizedBox(height: 8.h),
                   _ProfileMenuItem(
                     icon: Icons.key_outlined,
-                    title: 'Key Provisioning',
-                    subtitle: 'Manage encryption keys',
+                    title: 'Device Keys',
+                    subtitle: 'Manage your device security keys',
                     onTap: () =>
                         Navigator.pushNamed(context, Routes.keyProvision),
                   ),
@@ -233,15 +236,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   SizedBox(height: 12.h),
                   _ProfileMenuItem(
                     icon: Icons.bluetooth_outlined,
-                    title: 'BLE Scanner',
-                    subtitle: 'Scan nearby Bluetooth devices',
+                    title: 'Nearby Devices',
+                    subtitle: 'Find and connect to nearby devices',
                     onTap: () => Navigator.pushNamed(context, Routes.ble),
                   ),
                   SizedBox(height: 8.h),
                   _ProfileMenuItem(
                     icon: Icons.sync_outlined,
-                    title: 'Sync Status',
-                    subtitle: 'View offline sync status',
+                    title: 'Offline Sync',
+                    subtitle: 'View data sync status when offline',
                     onTap: () {},
                   ),
                   SizedBox(height: 8.h),
@@ -258,6 +261,115 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     subtitle: 'English',
                     onTap: () {},
                   ),
+
+                  // ── Audit Logs (camp_commander + sync_admin) ──────────────
+                  RoleGate(
+                    permission: Permission.readAuditLogs,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 24.h),
+                        Text(
+                          'Audit & Compliance',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                        SizedBox(height: 12.h),
+                        _ProfileMenuItem(
+                          icon: Icons.history_outlined,
+                          title: 'Audit Logs',
+                          subtitle: 'View immutable hash-chained event log',
+                          onTap: () {},
+                        ),
+                        SizedBox(height: 8.h),
+                        RoleGate(
+                          permission: Permission.triagePriority,
+                          child: _ProfileMenuItem(
+                            icon: Icons.medical_services_outlined,
+                            title: 'Triage Control',
+                            subtitle: 'Manage P0–P3 SLA priority decisions',
+                            onTap: () {},
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Sync Admin section (sync_admin only) ─────────────────
+                  RoleGate.any(
+                    permissions: [
+                      Permission.resolveCRDTConflicts,
+                      Permission.manageSyncNodes,
+                    ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 24.h),
+                        Text(
+                          'Sync Administration',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                        SizedBox(height: 12.h),
+                        _ProfileMenuItem(
+                          icon: Icons.merge_type_outlined,
+                          title: 'CRDT Conflicts',
+                          subtitle: 'Resolve pending vector-clock conflicts',
+                          onTap: () {},
+                        ),
+                        SizedBox(height: 8.h),
+                        _ProfileMenuItem(
+                          icon: Icons.device_hub_outlined,
+                          title: 'Sync Nodes',
+                          subtitle: 'Manage mesh synchronisation topology',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── User Management (sync_admin only) ────────────────────
+                  RoleGate(
+                    permission: Permission.manageUsers,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 24.h),
+                        Text(
+                          'User Management',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                        SizedBox(height: 12.h),
+                        _ProfileMenuItem(
+                          icon: Icons.group_outlined,
+                          title: 'All Users',
+                          subtitle: 'View, suspend or activate accounts',
+                          onTap: () {},
+                        ),
+                        SizedBox(height: 8.h),
+                        RoleGate(
+                          permission: Permission.manageRoles,
+                          child: _ProfileMenuItem(
+                            icon: Icons.manage_accounts_outlined,
+                            title: 'Role Assignment',
+                            subtitle: 'Change user roles & permissions',
+                            onTap: () {},
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   SizedBox(height: 32.h),
                   CustomButton(
                     onPressed: authState is AuthLoadingState

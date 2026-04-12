@@ -59,7 +59,7 @@ class _PodScannerScreenState extends State<PodScannerScreen>
     return Scaffold(
       backgroundColor: AppColors.colorBackground,
       appBar: AppBar(
-        title: Text('Proof of Delivery', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700)),
+        title: Text('Delivery Confirmation', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w700)),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primarySurfaceDefault,

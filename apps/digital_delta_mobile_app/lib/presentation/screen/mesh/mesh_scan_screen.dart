@@ -34,7 +34,7 @@ class MeshScanScreen extends ConsumerWidget {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D1B2A),
           foregroundColor: Colors.white,
-          title: Text('M3 · Mesh Network',
+          title: Text('Nearby Device Network',
               style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700, color: Colors.white)),
           actions: [
             IconButton(

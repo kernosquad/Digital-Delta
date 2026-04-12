@@ -35,7 +35,7 @@ class DashboardScreen extends ConsumerWidget {
       child: Scaffold(
         backgroundColor: AppColors.colorBackground,
         appBar: AppBar(
-          title: Text('M2 · CRDT Sync Engine',
+          title: Text('Supply & Delivery Status',
               style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700)),
           actions: [
             _SyncBadge(label: syncInfo.$1, color: syncInfo.$2, icon: syncInfo.$3),

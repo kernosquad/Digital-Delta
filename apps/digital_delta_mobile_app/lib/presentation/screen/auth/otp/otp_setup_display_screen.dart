@@ -80,7 +80,7 @@ class _OtpSetupDisplayScreenState extends ConsumerState<OtpSetupDisplayScreen> {
   Future<void> _copySecret() async {
     await Clipboard.setData(ClipboardData(text: widget.secret));
     if (mounted) {
-      Toaster.showSuccess(context, 'Secret copied to clipboard');
+      Toaster.showSuccess(context, 'Code copied to clipboard');
     }
   }
 
