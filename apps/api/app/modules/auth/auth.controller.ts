@@ -6,7 +6,6 @@ import {
   otpVerifyValidator,
   provisionKeyValidator,
   registerValidator,
-  verifyEmailValidator,
 } from './auth.validator.js';
 
 import type { AuthService } from './auth.service.js';
@@ -47,14 +46,5 @@ export default class AuthController {
   async provisionKey(ctx: HttpContext) {
     const payload = await ctx.request.validateUsing(provisionKeyValidator);
     return this.authService.provisionKey(ctx, payload);
-  }
-
-  async verifyEmail(ctx: HttpContext) {
-    const payload = await ctx.request.validateUsing(verifyEmailValidator);
-    return this.authService.verifyEmail(ctx, payload);
-  }
-
-  async resendVerification(ctx: HttpContext) {
-    return this.authService.resendVerification(ctx);
   }
 }
