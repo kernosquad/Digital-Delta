@@ -35,21 +35,21 @@ const AntDesignProvider = ({ children }: React.PropsWithChildren) => {
           },
           components: {
             Layout: {
-              bodyBg: 'var(--color-white)',
+              bodyBg: '#f5f6fa',
               footerBg: 'var(--color-dd-gray-50)',
               footerPadding: '24px 50px',
 
-              headerBg: 'var(--color-dd-primary-500)',
-              headerColor: 'var(--color-white)',
-              headerHeight: 64,
-              headerPadding: '0 50px',
+              headerBg: '#ffffff',
+              headerColor: 'var(--color-dd-gray-900)',
+              headerHeight: 56,
+              headerPadding: '0 20px',
 
               lightSiderBg: 'var(--color-white)',
               lightTriggerBg: 'var(--color-dd-gray-100)',
               lightTriggerColor: 'var(--color-dd-gray-900)',
 
-              siderBg: 'var(--color-dd-primary-50)',
-              triggerBg: 'var(--color-dd-primary-600)',
+              siderBg: '#052e16',
+              triggerBg: '#14532d',
               triggerColor: 'var(--color-white)',
               triggerHeight: 48,
 

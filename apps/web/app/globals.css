@@ -1,37 +1,30 @@
 @import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --color-white: #ffffff;
-}
+/*
+ * ALL color tokens are declared in @theme (not @theme inline).
+ * This causes Tailwind v4 to emit them as CSS custom properties in :root,
+ * which means var(--color-dd-*) references in Ant Design cssVar tokens resolve.
+ * @theme inline only maps utilities to existing vars — it does NOT create new vars.
+ */
 
-/* ─── Primary palette — Digital Delta command blue ─── */
 @theme {
-  --color-dd-primary-25: #eff6ff;
-  --color-dd-primary-50: #dbeafe;
-  --color-dd-primary-100: #bfdbfe;
-  --color-dd-primary-200: #93c5fd;
-  --color-dd-primary-300: #60a5fa;
-  --color-dd-primary-400: #3b82f6;
-  --color-dd-primary-500: #2563eb;
-  --color-dd-primary-600: #1d4ed8;
-  --color-dd-primary-700: #1e40af;
-  --color-dd-primary-800: #1e3a8a;
-  --color-dd-primary-900: #172554;
-  --color-dd-primary-950: #0f1b3a;
-  --color-dd-primary-500-rgb: 37, 99, 235;
-}
+  /* ── Primary — natural disaster green ────────────────────── */
+  --color-dd-primary-25:  #f0fdf4;
+  --color-dd-primary-50:  #dcfce7;
+  --color-dd-primary-100: #bbf7d0;
+  --color-dd-primary-200: #86efac;
+  --color-dd-primary-300: #4ade80;
+  --color-dd-primary-400: #22c55e;
+  --color-dd-primary-500: #16a34a;
+  --color-dd-primary-600: #15803d;
+  --color-dd-primary-700: #166534;
+  --color-dd-primary-800: #14532d;
+  --color-dd-primary-900: #052e16;
+  --color-dd-primary-950: #021a0c;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-
-  /* ─── Gray scale ─── */
-  --color-dd-gray-25: #fcfcfd;
-  --color-dd-gray-50: #f9fafb;
+  /* ── Gray ─────────────────────────────────────────────────── */
+  --color-dd-gray-25:  #fcfcfd;
+  --color-dd-gray-50:  #f9fafb;
   --color-dd-gray-100: #f2f4f7;
   --color-dd-gray-200: #eaecf0;
   --color-dd-gray-250: #e1e4ea;
@@ -45,9 +38,9 @@
   --color-dd-gray-900: #111827;
   --color-dd-gray-950: #0c111d;
 
-  /* ─── Red (alerts, danger, critical) ─── */
-  --color-dd-red-25: #fffbfa;
-  --color-dd-red-50: #fef3f2;
+  /* ── Red — P0 critical / SLA breach ──────────────────────── */
+  --color-dd-red-25:  #fffbfa;
+  --color-dd-red-50:  #fef3f2;
   --color-dd-red-100: #fee4e2;
   --color-dd-red-200: #fecdca;
   --color-dd-red-300: #fda29b;
@@ -59,9 +52,8 @@
   --color-dd-red-900: #7a271a;
   --color-dd-red-950: #55160c;
 
-  /* ─── Warning (SLA breach, degraded routes) ─── */
-  --color-dd-warning-25: #fffcf5;
-  --color-dd-warning-50: #fffaeb;
+  /* ── Warning — degraded route / SLA warning ───────────────── */
+  --color-dd-warning-50:  #fffaeb;
   --color-dd-warning-100: #fef0c7;
   --color-dd-warning-200: #fedf89;
   --color-dd-warning-300: #fec84b;
@@ -69,84 +61,68 @@
   --color-dd-warning-500: #f79009;
   --color-dd-warning-600: #dc6803;
   --color-dd-warning-700: #b54708;
-  --color-dd-warning-800: #93370d;
-  --color-dd-warning-900: #7a2e0e;
-  --color-dd-warning-950: #4e1d09;
 
-  /* ─── Success (delivered, route clear) ─── */
-  --color-dd-success-25: #f6fef9;
-  --color-dd-success-50: #ecfdf3;
+  /* ── Success — delivered / clear ─────────────────────────── */
+  --color-dd-success-50:  #ecfdf3;
   --color-dd-success-100: #dcfae6;
   --color-dd-success-200: #abefc6;
-  --color-dd-success-300: #75e0a7;
   --color-dd-success-400: #47cd89;
   --color-dd-success-500: #17b26a;
   --color-dd-success-600: #079455;
   --color-dd-success-700: #067647;
-  --color-dd-success-800: #085d3a;
-  --color-dd-success-900: #074d31;
-  --color-dd-success-950: #053321;
 
-  /* ─── Shadows ─── */
-  --shadow-dd-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
-  --shadow-dd-sm: 0px 1px 3px 0px rgba(16, 24, 40, 0.1), 0px 1px 2px -1px rgba(16, 24, 40, 0.1);
-  --shadow-dd-md: 0px 4px 6px -1px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.1);
-  --shadow-dd-lg: 0px 10px 15px -3px rgba(16, 24, 40, 0.1), 0px 4px 6px -4px rgba(16, 24, 40, 0.1);
-  --shadow-dd-xl: 0px 20px 25px -5px rgba(16, 24, 40, 0.1), 0px 8px 10px -6px rgba(16, 24, 40, 0.1);
+  /* ── White alias ──────────────────────────────────────────── */
+  --color-white: #ffffff;
 
-  /* ring shadow — uses primary color rgb */
-  --shadow-dd-ring-xs:
-    0px 1px 2px 0px rgba(16, 24, 40, 0.05),
-    0px 0px 0px 4px rgba(var(--color-dd-primary-500-rgb), 0.2);
+  /* ── Shadows ──────────────────────────────────────────────── */
+  --shadow-dd-xs:  0px 1px 2px 0px rgba(16,24,40,.05);
+  --shadow-dd-sm:  0px 1px 3px 0px rgba(16,24,40,.10), 0px 1px 2px -1px rgba(16,24,40,.10);
+  --shadow-dd-md:  0px 4px 6px -1px rgba(16,24,40,.10), 0px 2px 4px -2px rgba(16,24,40,.10);
+  --shadow-dd-lg:  0px 10px 15px -3px rgba(16,24,40,.10), 0px 4px 6px -4px rgba(16,24,40,.10);
+  --shadow-dd-xl:  0px 20px 25px -5px rgba(16,24,40,.10), 0px 8px 10px -6px rgba(16,24,40,.10);
+  --shadow-dd-ring-xs: 0px 0px 0px 4px rgba(22,163,74,.20);
 
-  /* ─── Layout ─── */
-  --spacing-dashboard-max-width: 100rem;
+  /* ── Fonts ────────────────────────────────────────────────── */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
-/* ─── Base ─── */
-html {
-  overflow-x: hidden;
+/* ─── Runtime values not managed by Tailwind ─────────────────────────────── */
+:root {
+  --background:              #f5f6fa;
+  --color-dd-primary-500-rgb: 22, 163, 74;
 }
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+html { overflow-x: hidden; }
 
 body {
   background: var(--background);
   color: var(--color-dd-gray-800);
-  font-family: var(--font-geist-sans);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* ─── Scrollbar ─── */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* ─── Thin global scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--color-dd-gray-100); }
+::-webkit-scrollbar-thumb { background: var(--color-dd-gray-300); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-dd-primary-400); }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: var(--color-dd-gray-100);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--color-dd-primary-500);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--color-dd-primary-700);
-}
-
-/* ─── Smooth transitions on interactive elements ─── */
-a,
-button,
-input,
-select,
-textarea,
-[role='button'] {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+/* ─── Interactive element transitions ────────────────────────────────────── */
+a, button, input, select, textarea, [role='button'] {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
   transition-duration: 150ms;
 }
 
-/* ─── Utility ─── */
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-dd-primary-500), var(--color-dd-primary-300));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -155,23 +131,6 @@ textarea,
   overflow: hidden;
 }
 
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-dd-primary-500), var(--color-dd-primary-300));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 @layer base {
-  .container {
-    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
-  }
+  .container { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
 }
