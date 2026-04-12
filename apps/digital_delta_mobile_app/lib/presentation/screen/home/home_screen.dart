@@ -68,7 +68,7 @@ List<_Card> _operationCards(BuildContext context) => [
         permission: Permission.manageInventory,
       ),
       _Card(
-        title: 'PoD Scanner',
+        title: 'Delivery Scan',
         icon: Icons.qr_code_scanner,
         color: Colors.purple,
         onTapBuilder: (ctx) =>
@@ -79,7 +79,7 @@ List<_Card> _operationCards(BuildContext context) => [
 
 List<_Card> _toolCards(BuildContext context) => [
       _Card(
-        title: 'Mesh & BLE',
+        title: 'Nearby Devices',
         icon: Icons.hub_rounded,
         color: Colors.indigo,
         onTapBuilder: (ctx) =>
@@ -87,14 +87,14 @@ List<_Card> _toolCards(BuildContext context) => [
         // All roles need offline mesh / BLE
       ),
       _Card(
-        title: 'OTP Setup',
+        title: 'Security Setup',
         icon: Icons.shield_outlined,
         color: Colors.teal,
         onTapBuilder: (ctx) => () => Navigator.pushNamed(ctx, Routes.otpSetup),
         // All roles configure their own 2FA
       ),
       _Card(
-        title: 'Key Provision',
+        title: 'Device Keys',
         icon: Icons.key_rounded,
         color: Colors.deepOrange,
         onTapBuilder: (ctx) =>
@@ -102,7 +102,7 @@ List<_Card> _toolCards(BuildContext context) => [
         // All roles manage their own device keys
       ),
       _Card(
-        title: 'Sync Admin',
+        title: 'Data Sync',
         icon: Icons.sync_problem_outlined,
         color: Colors.red,
         onTapBuilder: (_) => () {},
