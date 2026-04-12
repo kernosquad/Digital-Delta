@@ -11,7 +11,8 @@ export type JwtGuardOptions = {
 
 export class JwtGuard<
   UserProvider extends JwtUserProviderContract<unknown>,
-> implements GuardContract<UserProvider[typeof symbols.PROVIDER_REAL_USER]> {
+  RealUser = UserProvider extends JwtUserProviderContract<infer U> ? U : never,
+> implements GuardContract<RealUser> {
   #ctx: HttpContext;
   #userProvider: UserProvider;
   #options: JwtGuardOptions;
@@ -47,12 +48,12 @@ export class JwtGuard<
   /**
    * Reference to the currently authenticated user
    */
-  user?: UserProvider[typeof symbols.PROVIDER_REAL_USER];
+  user?: RealUser;
 
   /**
    * Generate a JWT token for a given user.
    */
-  async generate(user: UserProvider[typeof symbols.PROVIDER_REAL_USER]) {
+  async generate(user: RealUser) {
     const providerUser = await this.#userProvider.createUserForGuard(user);
     const token = jwt.sign({ userId: providerUser.getId() }, this.#options.secret, {
       expiresIn: '24h',
@@ -69,7 +70,7 @@ export class JwtGuard<
    * the user instance if there is a valid JWT token
    * or throw an exception
    */
-  async authenticate(): Promise<UserProvider[typeof symbols.PROVIDER_REAL_USER]> {
+  async authenticate(): Promise<RealUser> {
     if (this.authenticationAttempted) {
       return this.getUserOrFail();
     }
@@ -115,7 +116,7 @@ export class JwtGuard<
       });
     }
 
-    this.user = providerUser.getOriginal();
+    this.user = providerUser.getOriginal() as RealUser;
     return this.getUserOrFail();
   }
 
@@ -134,7 +135,7 @@ export class JwtGuard<
   /**
    * Returns the authenticated user or throws an error
    */
-  getUserOrFail(): UserProvider[typeof symbols.PROVIDER_REAL_USER] {
+  getUserOrFail(): RealUser {
     if (!this.user) {
       throw new errors.E_UNAUTHORIZED_ACCESS('Unauthorized access', {
         guardDriverName: this.driverName,
@@ -148,9 +149,7 @@ export class JwtGuard<
    * This method is called by Japa during testing when "loginAs"
    * method is used to login the user.
    */
-  async authenticateAsClient(
-    user: UserProvider[typeof symbols.PROVIDER_REAL_USER]
-  ): Promise<AuthClientResponse> {
+  async authenticateAsClient(user: RealUser): Promise<AuthClientResponse> {
     const token = await this.generate(user);
     return {
       headers: {
