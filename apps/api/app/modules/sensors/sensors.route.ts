@@ -8,8 +8,10 @@ router
   .group(() => {
     router.post('/readings', [SensorsController, 'ingest'])
     router.get('/readings', [SensorsController, 'readings'])
+    router.get('/features/rainfall', [SensorsController, 'rainfallFeatures'])
     router.get('/predictions', [SensorsController, 'predictions'])
     router.get('/predictions/:routeId', [SensorsController, 'prediction'])
+    router.post('/predictions/generate', [SensorsController, 'generatePredictions'])
   })
   .prefix('/api/sensors')
   .use(middleware.auth({ guards: ['jwt', 'web'] }))
