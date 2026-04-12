@@ -1,6 +1,6 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders';
+import { BaseSeeder } from '@adonisjs/lucid/seeders'
 
-import User from '#models/user';
+import User from '#models/user'
 
 /**
  * Seed one user per role + a super-admin.
@@ -50,6 +50,6 @@ export default class UserSeeder extends BaseSeeder {
         role: 'field_volunteer',
         status: 'active',
       },
-    ]);
+    ])
   }
 }

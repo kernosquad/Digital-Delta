@@ -1,9 +1,9 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders';
-import { DateTime } from 'luxon';
+import { BaseSeeder } from '@adonisjs/lucid/seeders'
+import { DateTime } from 'luxon'
 
-import Inventory from '#models/inventory';
-import Location from '#models/location';
-import SupplyItem from '#models/supply_item';
+import Inventory from '#models/inventory'
+import Location from '#models/location'
+import SupplyItem from '#models/supply_item'
 
 /**
  * Seed the M6 priority taxonomy supply catalog and initial inventory.
@@ -146,12 +146,12 @@ export default class SupplySeeder extends BaseSeeder {
         slaHours: 72,
         createdAt: DateTime.now(),
       },
-    ]);
+    ])
 
     // ── Inventory ─────────────────────────────────────────────────────────
-    const n1 = await Location.findByOrFail('nodeCode', 'N1');
-    const n2 = await Location.findByOrFail('nodeCode', 'N2');
-    const n4 = await Location.findByOrFail('nodeCode', 'N4');
+    const n1 = await Location.findByOrFail('nodeCode', 'N1')
+    const n2 = await Location.findByOrFail('nodeCode', 'N2')
+    const n4 = await Location.findByOrFail('nodeCode', 'N4')
 
     // Central Command (N1) — main stockpile
     const n1Stock = [
@@ -167,7 +167,7 @@ export default class SupplySeeder extends BaseSeeder {
       [generator.id, 10],
       [generatorFuel.id, 500],
       [rope.id, 50],
-    ];
+    ]
 
     // Relief Camp Alpha (N2) — forward stock (smaller)
     const n2Stock = [
@@ -180,7 +180,7 @@ export default class SupplySeeder extends BaseSeeder {
       [tarpaulin.id, 300],
       [blanket.id, 800],
       [firstAidKit.id, 100],
-    ];
+    ]
 
     // Supply Drop (N4) — minimal staging stock
     const n4Stock = [
@@ -188,20 +188,20 @@ export default class SupplySeeder extends BaseSeeder {
       [foodRation.id, 400],
       [tarpaulin.id, 100],
       [blanket.id, 250],
-    ];
+    ]
 
     const inventoryRows: {
-      locationId: number;
-      supplyItemId: number;
-      quantity: number;
-      reservedQuantity: number;
-      crdtVectorClock: Record<string, number>;
-      lastUpdatedNode: string;
-      lastSyncedAt: DateTime;
-    }[] = [];
+      locationId: number
+      supplyItemId: number
+      quantity: number
+      reservedQuantity: number
+      crdtVectorClock: Record<string, number>
+      lastUpdatedNode: string
+      lastSyncedAt: DateTime
+    }[] = []
 
-    const now = DateTime.now();
-    const nodeId = 'server-N1';
+    const now = DateTime.now()
+    const nodeId = 'server-N1'
 
     for (const [itemId, qty] of n1Stock) {
       inventoryRows.push({
@@ -212,7 +212,7 @@ export default class SupplySeeder extends BaseSeeder {
         crdtVectorClock: { [nodeId]: 1 },
         lastUpdatedNode: nodeId,
         lastSyncedAt: now,
-      });
+      })
     }
 
     for (const [itemId, qty] of n2Stock) {
@@ -224,7 +224,7 @@ export default class SupplySeeder extends BaseSeeder {
         crdtVectorClock: { 'server-N2': 1 },
         lastUpdatedNode: 'server-N2',
         lastSyncedAt: now,
-      });
+      })
     }
 
     for (const [itemId, qty] of n4Stock) {
@@ -236,9 +236,9 @@ export default class SupplySeeder extends BaseSeeder {
         crdtVectorClock: { 'server-N4': 1 },
         lastUpdatedNode: 'server-N4',
         lastSyncedAt: now,
-      });
+      })
     }
 
-    await Inventory.createMany(inventoryRows);
+    await Inventory.createMany(inventoryRows)
   }
 }

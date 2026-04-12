@@ -1,9 +1,9 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders';
-import { DateTime } from 'luxon';
+import { BaseSeeder } from '@adonisjs/lucid/seeders'
+import { DateTime } from 'luxon'
 
-import Location from '#models/location';
-import User from '#models/user';
-import Vehicle from '#models/vehicle';
+import Location from '#models/location'
+import User from '#models/user'
+import Vehicle from '#models/vehicle'
 
 /**
  * Seed the initial fleet:
@@ -16,9 +16,9 @@ import Vehicle from '#models/vehicle';
  */
 export default class VehicleSeeder extends BaseSeeder {
   async run() {
-    const n1 = await Location.findByOrFail('nodeCode', 'N1');
-    const n5 = await Location.findByOrFail('nodeCode', 'N5');
-    const droneOp = await User.findByOrFail('email', 'drone@digitaldelta.io');
+    const n1 = await Location.findByOrFail('nodeCode', 'N1')
+    const n5 = await Location.findByOrFail('nodeCode', 'N5')
+    const droneOp = await User.findByOrFail('email', 'drone@digitaldelta.io')
 
     await Vehicle.createMany([
       {
@@ -105,6 +105,6 @@ export default class VehicleSeeder extends BaseSeeder {
         operatorId: droneOp.id,
         createdAt: DateTime.now(),
       },
-    ]);
+    ])
   }
 }

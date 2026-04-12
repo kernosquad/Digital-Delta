@@ -1,8 +1,8 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders';
-import { DateTime } from 'luxon';
+import { BaseSeeder } from '@adonisjs/lucid/seeders'
+import { DateTime } from 'luxon'
 
-import Location from '#models/location';
-import Route from '#models/route';
+import Location from '#models/location'
+import Route from '#models/route'
 
 /**
  * Seed the Sylhet district disaster-response network graph.
@@ -101,7 +101,7 @@ export default class LocationRouteSeeder extends BaseSeeder {
         notes: 'Road junction relay point.',
         createdAt: DateTime.now(),
       },
-    ]);
+    ])
 
     // ── Routes (edges) ─────────────────────────────────────────────────────
     await Route.createMany([
@@ -203,6 +203,6 @@ export default class LocationRouteSeeder extends BaseSeeder {
         allowedVehicles: ['truck'],
         createdAt: DateTime.now(),
       },
-    ]);
+    ])
   }
 }
