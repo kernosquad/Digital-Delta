@@ -25,28 +25,29 @@
 |
 */
 
-import router from '@adonisjs/core/services/router';
+import router from '@adonisjs/core/services/router'
 
 // ── Module routes (each file self-registers with prefix + middleware) ──────
-import '#modules/auth/auth.route';
-import '#modules/users/users.route';
-import '#modules/locations/locations.route';
-import '#modules/network/network.route';
-import '#modules/vehicles/vehicles.route';
-import '#modules/supply/supply.route';
-import '#modules/missions/missions.route';
-import '#modules/delivery/delivery.route';
-import '#modules/sync/sync.route';
-import '#modules/mesh/mesh.route';
-import '#modules/sensors/sensors.route';
-import '#modules/triage/triage.route';
-import '#modules/handoff/handoff.route';
-import '#modules/dashboard/dashboard.route';
+import '#modules/auth/auth.route'
+import '#modules/web_auth/web_auth.route'
+import '#modules/users/users.route'
+import '#modules/locations/locations.route'
+import '#modules/network/network.route'
+import '#modules/vehicles/vehicles.route'
+import '#modules/supply/supply.route'
+import '#modules/missions/missions.route'
+import '#modules/delivery/delivery.route'
+import '#modules/sync/sync.route'
+import '#modules/mesh/mesh.route'
+import '#modules/sensors/sensors.route'
+import '#modules/triage/triage.route'
+import '#modules/handoff/handoff.route'
+import '#modules/dashboard/dashboard.route'
 
 router.get('/', async ({ response }) => {
-  return response.ok({ Digital: 'Delta' });
-});
+  return response.ok({ Digital: 'Delta' })
+})
 // ── Health check (public, no auth) ────────────────────────────────────────
 router.get('/health', async ({ response }) => {
-  return response.ok({ status: 'ok', timestamp: new Date().toISOString() });
-});
+  return response.ok({ status: 'ok', timestamp: new Date().toISOString() })
+})
