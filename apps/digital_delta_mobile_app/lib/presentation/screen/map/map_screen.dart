@@ -37,16 +37,16 @@ class _NodeData {
   });
 
   factory _NodeData.fromMap(Map<String, dynamic> m) => _NodeData(
-        id: (m['id'] as num).toInt(),
-        code: m['code'] as String,
-        name: m['name'] as String,
-        type: m['type'] as String,
-        lat: (m['lat'] as num).toDouble(),
-        lng: (m['lng'] as num).toDouble(),
-        isFlooded: m['is_flooded'] == true || m['is_flooded'] == 1,
-        capacity: m['capacity'] != null ? (m['capacity'] as num).toInt() : null,
-        occupancy: (m['current_occupancy'] as num? ?? 0).toInt(),
-      );
+    id: (m['id'] as num).toInt(),
+    code: m['code'] as String,
+    name: m['name'] as String,
+    type: m['type'] as String,
+    lat: (m['lat'] as num).toDouble(),
+    lng: (m['lng'] as num).toDouble(),
+    isFlooded: m['is_flooded'] == true || m['is_flooded'] == 1,
+    capacity: m['capacity'] != null ? (m['capacity'] as num).toInt() : null,
+    occupancy: (m['current_occupancy'] as num? ?? 0).toInt(),
+  );
 }
 
 class _EdgeData {
@@ -71,15 +71,15 @@ class _EdgeData {
   });
 
   factory _EdgeData.fromMap(Map<String, dynamic> m) => _EdgeData(
-        code: m['code'] as String,
-        sourceId: (m['source'] as num).toInt(),
-        targetId: (m['target'] as num).toInt(),
-        type: m['type'] as String,
-        isFlooded: m['is_flooded'] == true || m['is_flooded'] == 1,
-        isBlocked: m['is_blocked'] == true || m['is_blocked'] == 1,
-        risk: (m['risk_score'] as num? ?? 0).toDouble(),
-        travelMins: (m['current_travel_mins'] as num? ?? 0).toInt(),
-      );
+    code: m['code'] as String,
+    sourceId: (m['source'] as num).toInt(),
+    targetId: (m['target'] as num).toInt(),
+    type: m['type'] as String,
+    isFlooded: m['is_flooded'] == true || m['is_flooded'] == 1,
+    isBlocked: m['is_blocked'] == true || m['is_blocked'] == 1,
+    risk: (m['risk_score'] as num? ?? 0).toDouble(),
+    travelMins: (m['current_travel_mins'] as num? ?? 0).toInt(),
+  );
 }
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
@@ -98,71 +98,79 @@ Color _nodeColor(String type, bool flooded) {
 }
 
 IconData _nodeIcon(String type) => switch (type) {
-      'central_command' => Icons.account_balance,
-      'relief_camp' => Icons.home_work_outlined,
-      'hospital' => Icons.local_hospital,
-      'supply_drop' => Icons.inventory_2_outlined,
-      'drone_base' => Icons.flight_takeoff,
-      'waypoint' => Icons.radio_button_checked,
-      _ => Icons.place,
-    };
+  'central_command' => Icons.account_balance,
+  'relief_camp' => Icons.home_work_outlined,
+  'hospital' => Icons.local_hospital,
+  'supply_drop' => Icons.inventory_2_outlined,
+  'drone_base' => Icons.flight_takeoff,
+  'waypoint' => Icons.radio_button_checked,
+  _ => Icons.place,
+};
 
 Color _edgeColor(String type) => switch (type) {
-      'road' => const Color(0xFF607D8B),
-      'river' => const Color(0xFF1565C0),
-      'airway' => const Color(0xFF6A1B9A),
-      _ => const Color(0xFF78909C),
-    };
+  'road' => const Color(0xFF607D8B),
+  'river' => const Color(0xFF1565C0),
+  'airway' => const Color(0xFF6A1B9A),
+  _ => const Color(0xFF78909C),
+};
 
 String _nodeTypeLabel(String type) => switch (type) {
-      'central_command' => 'Command HQ',
-      'relief_camp' => 'Relief Camp',
-      'hospital' => 'Hospital',
-      'supply_drop' => 'Supply Drop',
-      'drone_base' => 'Drone Base',
-      'waypoint' => 'Waypoint',
-      _ => type,
-    };
+  'central_command' => 'Command HQ',
+  'relief_camp' => 'Relief Camp',
+  'hospital' => 'Hospital',
+  'supply_drop' => 'Supply Drop',
+  'drone_base' => 'Drone Base',
+  'waypoint' => 'Waypoint',
+  _ => type,
+};
 
 Color _vehicleStatusColor(String status) => switch (status) {
-      'in_mission' => const Color(0xFF2E7D32),
-      'idle' => const Color(0xFF455A64),
-      'maintenance' => const Color(0xFFE65100),
-      'offline' => const Color(0xFFC62828),
-      _ => const Color(0xFF9E9E9E),
-    };
+  'in_mission' => const Color(0xFF2E7D32),
+  'idle' => const Color(0xFF455A64),
+  'maintenance' => const Color(0xFFE65100),
+  'offline' => const Color(0xFFC62828),
+  _ => const Color(0xFF9E9E9E),
+};
 
 IconData _vehicleIcon(String type) => switch (type) {
-      'truck' => Icons.local_shipping,
-      'speedboat' => Icons.directions_boat,
-      'drone' => Icons.airplanemode_active,
-      _ => Icons.commute,
-    };
+  'truck' => Icons.local_shipping,
+  'speedboat' => Icons.directions_boat,
+  'drone' => Icons.airplanemode_active,
+  _ => Icons.commute,
+};
 
 // ── ML helpers ────────────────────────────────────────────────────────────────
 
 Map<String, dynamic> _generateNodeMlPrediction(_NodeData node) {
   final rng = math.Random(node.id * 31 + node.type.length);
-  final base =
-      node.isFlooded ? 0.65 + rng.nextDouble() * 0.33 : rng.nextDouble() * 0.7;
+  final base = node.isFlooded
+      ? 0.65 + rng.nextDouble() * 0.33
+      : rng.nextDouble() * 0.7;
   final risk = double.parse(base.toStringAsFixed(3));
-  final conf =
-      double.parse((0.74 + rng.nextDouble() * 0.24).toStringAsFixed(3));
-  final rainfall =
-      double.parse((22.0 + rng.nextDouble() * 195.0).toStringAsFixed(1));
-  final soil =
-      double.parse((0.35 + rng.nextDouble() * 0.60).toStringAsFixed(3));
-  final rateOfChange =
-      double.parse((rng.nextDouble() * 8.5).toStringAsFixed(2));
+  final conf = double.parse(
+    (0.74 + rng.nextDouble() * 0.24).toStringAsFixed(3),
+  );
+  final rainfall = double.parse(
+    (22.0 + rng.nextDouble() * 195.0).toStringAsFixed(1),
+  );
+  final soil = double.parse(
+    (0.35 + rng.nextDouble() * 0.60).toStringAsFixed(3),
+  );
+  final rateOfChange = double.parse(
+    (rng.nextDouble() * 8.5).toStringAsFixed(2),
+  );
   final factors = <String>[];
   if (rainfall > 140) {
     factors.add('High cumulative rainfall (${rainfall.toStringAsFixed(0)} mm)');
   }
   if (soil > 0.75) {
-    factors.add('Soil saturation critical (${(soil * 100).toStringAsFixed(0)}%)');
+    factors.add(
+      'Soil saturation critical (${(soil * 100).toStringAsFixed(0)}%)',
+    );
   }
   if (node.isFlooded) factors.add('Current flood status confirmed');
-  if (rateOfChange > 5) factors.add('Rapid water-level rise ($rateOfChange mm/h)');
+  if (rateOfChange > 5)
+    factors.add('Rapid water-level rise ($rateOfChange mm/h)');
   if (node.type == 'supply_drop') factors.add('Low-elevation staging point');
   if (factors.isEmpty) factors.add('Baseline environmental risk');
   return {
@@ -184,15 +192,17 @@ Map<String, dynamic> _generateEdgeMlPrediction(_EdgeData edge) {
       ? 0.72 + rng.nextDouble() * 0.26
       : edge.risk + rng.nextDouble() * 0.25;
   final risk = double.parse(base.clamp(0.0, 1.0).toStringAsFixed(3));
-  final conf =
-      double.parse((0.71 + rng.nextDouble() * 0.27).toStringAsFixed(3));
+  final conf = double.parse(
+    (0.71 + rng.nextDouble() * 0.27).toStringAsFixed(3),
+  );
   final factors = <String>[];
   if (edge.isFlooded) factors.add('Route actively flooded');
   if (edge.isBlocked) factors.add('Physical obstruction reported');
   if (edge.risk > 0.5) {
     factors.add('Base risk score elevated (${(edge.risk * 100).toInt()}%)');
   }
-  if (edge.type == 'river') factors.add('River-type — sensitive to water level');
+  if (edge.type == 'river')
+    factors.add('River-type — sensitive to water level');
   if (edge.travelMins > 90) factors.add('Extended travel time degrades SLA');
   if (factors.isEmpty) factors.add('Normal operational conditions');
   return {
@@ -238,7 +248,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
   Timer? _refreshTimer;
 
   // Highlighted route path (node IDs from routing engine)
-  List<int> _highlightedPath = [];
+  final List<int> _highlightedPath = [];
+
+  // ── Simulation engine ─────────────────────────────────────────────────────
+  // Mobile route animation inspired by https://leafletjs.com/examples/mobile/
+  List<_NodeData> _cachedNodes = [];
+  List<_EdgeData> _cachedEdges = [];
+  bool _simMode = false;
+  bool _simPlaying = false;
+  double _simProgress = 0.0;
+  List<LatLng> _simPath = [];
+  int _simSourceId = -1;
+  int _simTargetId = -1;
+  double _simSpeed = 1.0;
+  bool _simFollowMode = true;
+  Timer? _simTimer;
+  LatLng? _simCurrentPos;
+  late final AnimationController _simPulseCtrl;
+  late final Animation<double> _simPulseAnim;
 
   static const _center = LatLng(24.980, 91.770);
 
@@ -247,25 +274,34 @@ class _MapScreenState extends ConsumerState<MapScreen>
     super.initState();
 
     _pulseCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1400))
-      ..repeat(reverse: true);
-    _pulseAnim =
-        CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnim = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
 
     _vehicleTickCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
 
     _vehicleTickCtrl.addListener(() {
       if (mounted) setState(() {});
     });
 
+    _simPulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _simPulseAnim = CurvedAnimation(
+      parent: _simPulseCtrl,
+      curve: Curves.easeInOut,
+    );
+
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
-      final online = ref.read(connectivityNotifierProvider).maybeWhen(
-            online: (_) => true,
-            orElse: () => false,
-          );
+      final online = ref
+          .read(connectivityNotifierProvider)
+          .maybeWhen(online: (_) => true, orElse: () => false);
       if (!online) return;
       ref.read(appDataNotifierProvider.notifier).refresh();
     });
@@ -275,8 +311,209 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void dispose() {
     _pulseCtrl.dispose();
     _vehicleTickCtrl.dispose();
+    _simPulseCtrl.dispose();
+    _simTimer?.cancel();
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  // ── Simulation helpers ────────────────────────────────────────────────────
+
+  void _rebuildSimPath() {
+    if (_simSourceId < 0 || _simTargetId < 0 || _cachedNodes.isEmpty) return;
+    final nodeMap = {for (final n in _cachedNodes) n.id: n};
+    final path = _bfsPath(_simSourceId, _simTargetId, _cachedEdges, nodeMap);
+    _simTimer?.cancel();
+    setState(() {
+      _simPath = path;
+      _simProgress = 0;
+      _simCurrentPos = path.isNotEmpty ? path.first : null;
+      _simPlaying = false;
+    });
+  }
+
+  List<LatLng> _bfsPath(
+    int fromId,
+    int toId,
+    List<_EdgeData> edges,
+    Map<int, _NodeData> nodeMap,
+  ) {
+    if (fromId == toId) {
+      final n = nodeMap[fromId];
+      return n == null ? [] : [LatLng(n.lat, n.lng)];
+    }
+    final visited = <int>{fromId};
+    final queue = <List<int>>[
+      [fromId],
+    ];
+    while (queue.isNotEmpty) {
+      final path = queue.removeAt(0);
+      final cur = path.last;
+      for (final e in edges) {
+        int? nxt;
+        if (e.sourceId == cur &&
+            !visited.contains(e.targetId) &&
+            nodeMap.containsKey(e.targetId)) {
+          nxt = e.targetId;
+        } else if (e.targetId == cur &&
+            !visited.contains(e.sourceId) &&
+            nodeMap.containsKey(e.sourceId)) {
+          nxt = e.sourceId;
+        }
+        if (nxt == null) continue;
+        final newPath = [...path, nxt];
+        if (nxt == toId) {
+          return newPath
+              .map((id) => LatLng(nodeMap[id]!.lat, nodeMap[id]!.lng))
+              .toList();
+        }
+        visited.add(nxt);
+        queue.add(newPath);
+      }
+    }
+    // No graph path — fallback to direct line
+    final f = nodeMap[fromId], t = nodeMap[toId];
+    if (f != null && t != null) {
+      return [LatLng(f.lat, f.lng), LatLng(t.lat, t.lng)];
+    }
+    return [];
+  }
+
+  LatLng _interpolatedPos() {
+    if (_simPath.isEmpty) return _center;
+    final total = (_simPath.length - 1).toDouble();
+    final c = _simProgress.clamp(0.0, total);
+    final idx = c.floor().clamp(0, _simPath.length - 2);
+    final t = c - idx;
+    final a = _simPath[idx];
+    final b = _simPath[idx + 1];
+    return LatLng(
+      a.latitude + (b.latitude - a.latitude) * t,
+      a.longitude + (b.longitude - a.longitude) * t,
+    );
+  }
+
+  double _simHeadingDeg() {
+    if (_simPath.length < 2) return 0;
+    final idx = _simProgress.floor().clamp(0, _simPath.length - 2);
+    final a = _simPath[idx];
+    final b = _simPath[idx + 1];
+    return math.atan2(b.longitude - a.longitude, b.latitude - a.latitude) *
+        180 /
+        math.pi;
+  }
+
+  void _startSim() {
+    if (_simPath.isEmpty || _simPlaying) return;
+    if (_simProgress >= _simPath.length - 1) _simProgress = 0.0;
+    setState(() => _simPlaying = true);
+    _simTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!mounted) return;
+      setState(() {
+        _simProgress += _simSpeed / 80.0;
+        if (_simProgress >= _simPath.length - 1) {
+          _simProgress = (_simPath.length - 1).toDouble();
+          _simPlaying = false;
+          _simTimer?.cancel();
+        }
+        _simCurrentPos = _interpolatedPos();
+        if (_simFollowMode && _simCurrentPos != null) {
+          _mapController.move(_simCurrentPos!, _mapController.camera.zoom);
+        }
+      });
+    });
+  }
+
+  void _pauseSim() {
+    _simTimer?.cancel();
+    setState(() => _simPlaying = false);
+  }
+
+  void _resetSim() {
+    _simTimer?.cancel();
+    setState(() {
+      _simProgress = 0;
+      _simPlaying = false;
+      _simCurrentPos = _simPath.isNotEmpty ? _simPath.first : null;
+    });
+  }
+
+  List<CircleMarker> _buildSimCircles() {
+    if (_simCurrentPos == null) return [];
+    final pulse = _simPulseAnim.value;
+    return [
+      CircleMarker(
+        point: _simCurrentPos!,
+        radius: 90 + 35 * pulse,
+        color: const Color(
+          0xFF1E88E5,
+        ).withValues(alpha: 0.07 + 0.04 * (1 - pulse)),
+        borderColor: const Color(
+          0xFF1E88E5,
+        ).withValues(alpha: 0.28 + 0.12 * (1 - pulse)),
+        borderStrokeWidth: 1.5,
+        useRadiusInMeter: true,
+      ),
+      CircleMarker(
+        point: _simCurrentPos!,
+        radius: 24,
+        color: const Color(0xFF1E88E5).withValues(alpha: 0.22),
+        borderColor: Colors.white,
+        borderStrokeWidth: 2.0,
+        useRadiusInMeter: true,
+      ),
+    ];
+  }
+
+  List<Marker> _buildSimPositionMarker() {
+    if (_simCurrentPos == null) return [];
+    final heading = _simHeadingDeg();
+    final pulse = _simPulseAnim.value;
+    return [
+      Marker(
+        point: _simCurrentPos!,
+        width: 52,
+        height: 52,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 40 + 8 * pulse,
+              height: 40 + 8 * pulse,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(
+                  0xFF1E88E5,
+                ).withValues(alpha: 0.15 * (1 - pulse * 0.5)),
+              ),
+            ),
+            Transform.rotate(
+              angle: heading * math.pi / 180,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1E88E5),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x551E88E5),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.navigation,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -307,23 +544,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // ── Loading skeleton ──────────────────────────────────────────────────────
 
   Widget _buildSkeleton() {
-    return Stack(children: [
-      const ColoredBox(color: Color(0xFFECEFF1), child: SizedBox.expand()),
-      const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: AppColors.primarySurfaceDefault),
-            SizedBox(height: 16),
-            Text('Loading operations map…',
+    return Stack(
+      children: [
+        const ColoredBox(color: Color(0xFFECEFF1), child: SizedBox.expand()),
+        const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.primarySurfaceDefault),
+              SizedBox(height: 16),
+              Text(
+                'Loading operations map…',
                 style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.secondaryTextDefault,
-                    fontWeight: FontWeight.w500)),
-          ],
+                  fontSize: 14,
+                  color: AppColors.secondaryTextDefault,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   // ── Map view ──────────────────────────────────────────────────────────────
@@ -334,14 +576,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final nodeMap = {for (final n in nodes) n.id: n};
     final vehicles = snap.vehicles;
 
+    // Cache latest data for simulation path finder (BFS uses these)
+    _cachedNodes = nodes;
+    _cachedEdges = edges;
+
     final polylines = _buildPolylines(edges, nodeMap);
     final nodeMarkers = _showNodes ? _buildNodeMarkers(nodes) : <Marker>[];
-    final vehicleMarkers =
-        _showVehicles ? _buildVehicleMarkers(vehicles, nodeMap) : <Marker>[];
-    final edgeRiskMarkers =
-        _showEdges ? _buildEdgeMidpointMarkers(edges, nodeMap) : <Marker>[];
+    final vehicleMarkers = _showVehicles
+        ? _buildVehicleMarkers(vehicles, nodeMap)
+        : <Marker>[];
+    final edgeRiskMarkers = _showEdges
+        ? _buildEdgeMidpointMarkers(edges, nodeMap)
+        : <Marker>[];
 
-    final bool panelOpen = _selectedNode != null ||
+    final bool panelOpen =
+        _selectedNode != null ||
         _selectedVehicle != null ||
         _selectedEdge != null;
 
@@ -374,9 +623,27 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 maxZoom: 19,
               ),
             if (_showEdges) PolylineLayer(polylines: polylines),
+            // ── Simulation route path ──────────────────────────────────────
+            if (_simMode && _simPath.length > 1)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: _simPath,
+                    color: const Color(0xFF1E88E5),
+                    strokeWidth: 5.0,
+                    borderColor: const Color(0xFF1E88E5).withValues(alpha: 0.3),
+                    borderStrokeWidth: 3.0,
+                  ),
+                ],
+              ),
             MarkerLayer(markers: nodeMarkers),
             MarkerLayer(markers: edgeRiskMarkers),
             MarkerLayer(markers: vehicleMarkers),
+            // ── Simulation accuracy circle + position marker ───────────────
+            if (_simMode && _simCurrentPos != null)
+              CircleLayer(circles: _buildSimCircles()),
+            if (_simMode && _simCurrentPos != null)
+              MarkerLayer(markers: _buildSimPositionMarker()),
           ],
         ),
 
@@ -389,10 +656,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
             isOnline: isOnline,
             snap: snap,
             onRefresh: () {
-              final online = ref.read(connectivityNotifierProvider).maybeWhen(
-                    online: (_) => true,
-                    orElse: () => false,
-                  );
+              final online = ref
+                  .read(connectivityNotifierProvider)
+                  .maybeWhen(online: (_) => true, orElse: () => false);
               if (online) {
                 ref.read(appDataNotifierProvider.notifier).syncAndRefresh();
               } else {
@@ -411,24 +677,47 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ),
         ),
 
-        // ── Map legend ────────────────────────────────────────────────────────
+        // ── Simulate FAB + Map legend (right side stack) ─────────────────────
         Positioned(
-          bottom: panelOpen ? 316 : 24,
+          bottom: panelOpen ? 316 : (_simMode ? 224 : 24),
           right: 12,
-          child: const _MapLegend(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _SimFab(
+                active: _simMode,
+                onTap: () => setState(() {
+                  _simMode = !_simMode;
+                  if (!_simMode) {
+                    _pauseSim();
+                    _simPath = [];
+                    _simProgress = 0;
+                    _simCurrentPos = null;
+                    _simSourceId = -1;
+                    _simTargetId = -1;
+                  }
+                }),
+              ),
+              const SizedBox(height: 8),
+              const _MapLegend(),
+            ],
+          ),
         ),
 
         // ── Zoom controls ─────────────────────────────────────────────────────
         Positioned(
-          bottom: panelOpen ? 316 : 24,
+          bottom: panelOpen ? 316 : (_simMode ? 224 : 24),
           left: 12,
           child: _ZoomControls(
             onZoomIn: () => _mapController.move(
-                _mapController.camera.center,
-                _mapController.camera.zoom + 1),
+              _mapController.camera.center,
+              _mapController.camera.zoom + 1,
+            ),
             onZoomOut: () => _mapController.move(
-                _mapController.camera.center,
-                _mapController.camera.zoom - 1),
+              _mapController.camera.center,
+              _mapController.camera.zoom - 1,
+            ),
             onCenter: () => _mapController.move(_center, 10.5),
           ),
         ),
@@ -446,8 +735,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
                 child: Row(
                   children: [
-                    Icon(Icons.layers_outlined,
-                        color: Colors.white, size: 16.sp),
+                    Icon(
+                      Icons.layers_outlined,
+                      color: Colors.white,
+                      size: 16.sp,
+                    ),
                     SizedBox(width: 10.w),
                     Expanded(
                       child: Text(
@@ -462,6 +754,43 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   ],
                 ),
               ),
+            ),
+          ),
+
+        // ── Simulation control panel ──────────────────────────────────────────
+        if (_simMode && !panelOpen)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _SimControlPanel(
+              nodes: _cachedNodes,
+              sourceId: _simSourceId,
+              targetId: _simTargetId,
+              playing: _simPlaying,
+              progress: _simPath.isEmpty
+                  ? 0.0
+                  : (_simProgress / (_simPath.length - 1).clamp(1, 9999)).clamp(
+                      0.0,
+                      1.0,
+                    ),
+              speed: _simSpeed,
+              followMode: _simFollowMode,
+              hasPath: _simPath.isNotEmpty,
+              onSetSource: (id) => setState(() {
+                _simSourceId = id;
+                _rebuildSimPath();
+              }),
+              onSetTarget: (id) => setState(() {
+                _simTargetId = id;
+                _rebuildSimPath();
+              }),
+              onPlay: _startSim,
+              onPause: _pauseSim,
+              onReset: _resetSim,
+              onSpeed: (s) => setState(() => _simSpeed = s),
+              onFollowToggle: () =>
+                  setState(() => _simFollowMode = !_simFollowMode),
             ),
           ),
 
@@ -511,7 +840,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // ── Polylines (M4.1 — multi-modal edge types) ─────────────────────────────
 
   List<Polyline> _buildPolylines(
-      List<_EdgeData> edges, Map<int, _NodeData> nodeMap) {
+    List<_EdgeData> edges,
+    Map<int, _NodeData> nodeMap,
+  ) {
     final result = <Polyline>[];
     for (final edge in edges) {
       final src = nodeMap[edge.sourceId];
@@ -520,7 +851,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
       final isCritical = edge.isFlooded || edge.isBlocked;
       final isHighRisk = edge.risk > 0.5 && !isCritical;
-      final isHighlighted = _highlightedPath.isNotEmpty &&
+      final isHighlighted =
+          _highlightedPath.isNotEmpty &&
           _highlightedPath.contains(edge.sourceId) &&
           _highlightedPath.contains(edge.targetId);
 
@@ -540,15 +872,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
         width = 3.0;
       }
 
-      result.add(Polyline(
-        points: [LatLng(src.lat, src.lng), LatLng(tgt.lat, tgt.lng)],
-        color: lineColor,
-        strokeWidth: width,
-        borderColor: isCritical
-            ? AppColors.dangerSurfaceDefault.withValues(alpha: 0.3)
-            : Colors.transparent,
-        borderStrokeWidth: isCritical ? 2.0 : 0,
-      ));
+      result.add(
+        Polyline(
+          points: [LatLng(src.lat, src.lng), LatLng(tgt.lat, tgt.lng)],
+          color: lineColor,
+          strokeWidth: width,
+          borderColor: isCritical
+              ? AppColors.dangerSurfaceDefault.withValues(alpha: 0.3)
+              : Colors.transparent,
+          borderStrokeWidth: isCritical ? 2.0 : 0,
+        ),
+      );
     }
     return result;
   }
@@ -556,7 +890,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // ── Edge midpoint ML risk markers ─────────────────────────────────────────
 
   List<Marker> _buildEdgeMidpointMarkers(
-      List<_EdgeData> edges, Map<int, _NodeData> nodeMap) {
+    List<_EdgeData> edges,
+    Map<int, _NodeData> nodeMap,
+  ) {
     if (!_showMlRisk) return [];
     final markers = <Marker>[];
     for (final edge in edges) {
@@ -572,33 +908,40 @@ class _MapScreenState extends ConsumerState<MapScreen>
           ? AppColors.dangerSurfaceDefault
           : AppColors.warningSurfaceDefault;
 
-      markers.add(Marker(
-        point: LatLng(midLat, midLng),
-        width: 28,
-        height: 28,
-        child: GestureDetector(
-          onTap: () => setState(() {
-            _selectedEdge = edge;
-            _selectedNode = null;
-            _selectedVehicle = null;
-            _nodeMlPrediction = null;
-            _edgeMlPrediction = _generateEdgeMlPrediction(edge);
-          }),
-          child: Container(
-            decoration: BoxDecoration(
-              color: markerColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                    color: markerColor.withValues(alpha: 0.4), blurRadius: 6)
-              ],
+      markers.add(
+        Marker(
+          point: LatLng(midLat, midLng),
+          width: 28,
+          height: 28,
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _selectedEdge = edge;
+              _selectedNode = null;
+              _selectedVehicle = null;
+              _nodeMlPrediction = null;
+              _edgeMlPrediction = _generateEdgeMlPrediction(edge);
+            }),
+            child: Container(
+              decoration: BoxDecoration(
+                color: markerColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: markerColor.withValues(alpha: 0.4),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
             ),
-            child: const Icon(Icons.warning_amber_rounded,
-                color: Colors.white, size: 14),
           ),
         ),
-      ));
+      );
     }
     return markers;
   }
@@ -635,7 +978,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: color.withValues(
-                          alpha: 0.25 * (1 - _pulseAnim.value)),
+                        alpha: 0.25 * (1 - _pulseAnim.value),
+                      ),
                     ),
                   ),
                 ),
@@ -647,9 +991,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: AppColors.dangerSurfaceDefault.withValues(
-                            alpha: 0.5),
-                        width: 2),
+                      color: AppColors.dangerSurfaceDefault.withValues(
+                        alpha: 0.5,
+                      ),
+                      width: 2,
+                    ),
                   ),
                 ),
               // Main badge
@@ -660,19 +1006,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
                   color: color,
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: Colors.white,
-                      width: isSelected ? 2.5 : 1.5),
+                    color: Colors.white,
+                    width: isSelected ? 2.5 : 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                        color: color.withValues(
-                            alpha: isSelected ? 0.55 : 0.3),
-                        blurRadius: isSelected ? 14 : 6,
-                        spreadRadius: isSelected ? 2 : 0),
+                      color: color.withValues(alpha: isSelected ? 0.55 : 0.3),
+                      blurRadius: isSelected ? 14 : 6,
+                      spreadRadius: isSelected ? 2 : 0,
+                    ),
                   ],
                 ),
-                child: Icon(_nodeIcon(node.type),
-                    color: Colors.white,
-                    size: isSelected ? 21 : 17),
+                child: Icon(
+                  _nodeIcon(node.type),
+                  color: Colors.white,
+                  size: isSelected ? 21 : 17,
+                ),
               ),
             ],
           ),
@@ -684,7 +1033,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // ── Vehicle markers (M4.4 fleet positions) ────────────────────────────────
 
   List<Marker> _buildVehicleMarkers(
-      List<Map<String, dynamic>> vehicles, Map<int, _NodeData> nodeMap) {
+    List<Map<String, dynamic>> vehicles,
+    Map<int, _NodeData> nodeMap,
+  ) {
     final markers = <Marker>[];
     final locationCounts = <int, int>{};
 
@@ -708,53 +1059,61 @@ class _MapScreenState extends ConsumerState<MapScreen>
       final isInMission = status == 'in_mission';
       final tickVal = _vehicleTickCtrl.value;
 
-      markers.add(Marker(
-        point: LatLng(offsetLat, offsetLng),
-        width: 44,
-        height: 44,
-        child: GestureDetector(
-          onTap: () => setState(() {
-            _selectedVehicle = v;
-            _selectedNode = null;
-            _selectedEdge = null;
-          }),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (isInMission)
+      markers.add(
+        Marker(
+          point: LatLng(offsetLat, offsetLng),
+          width: 44,
+          height: 44,
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _selectedVehicle = v;
+              _selectedNode = null;
+              _selectedEdge = null;
+            }),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isInMission)
+                  Container(
+                    width: 32 + 10 * tickVal,
+                    height: 32 + 10 * tickVal,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primarySurfaceDefault.withValues(
+                        alpha: 0.18 * (1 - tickVal),
+                      ),
+                    ),
+                  ),
                 Container(
-                  width: 32 + 10 * tickVal,
-                  height: 32 + 10 * tickVal,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primarySurfaceDefault
-                        .withValues(alpha: 0.18 * (1 - tickVal)),
+                    color: _vehicleStatusColor(status),
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _vehicleStatusColor(
+                          status,
+                        ).withValues(alpha: 0.4),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: Tooltip(
+                    message: identifier,
+                    child: Icon(
+                      _vehicleIcon(type),
+                      color: Colors.white,
+                      size: 15,
+                    ),
                   ),
                 ),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: _vehicleStatusColor(status),
-                  borderRadius: BorderRadius.circular(8.r),
-                  border: Border.all(color: Colors.white, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                        color:
-                            _vehicleStatusColor(status).withValues(alpha: 0.4),
-                        blurRadius: 6)
-                  ],
-                ),
-                child: Tooltip(
-                  message: identifier,
-                  child: Icon(_vehicleIcon(type),
-                      color: Colors.white, size: 15),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ));
+      );
     }
     return markers;
   }
@@ -791,8 +1150,9 @@ class _MapTopChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liveColor =
-        isOnline ? AppColors.primarySurfaceDefault : AppColors.statusPending;
+    final liveColor = isOnline
+        ? AppColors.primarySurfaceDefault
+        : AppColors.statusPending;
 
     return SafeArea(
       bottom: false,
@@ -825,8 +1185,11 @@ class _MapTopChrome extends StatelessWidget {
                         ),
                         borderRadius: BorderRadius.circular(12.r),
                       ),
-                      child: Icon(Icons.map_rounded,
-                          color: Colors.white, size: 20.sp),
+                      child: Icon(
+                        Icons.map_rounded,
+                        color: Colors.white,
+                        size: 20.sp,
+                      ),
                     ),
                     SizedBox(width: 10.w),
                     Expanded(
@@ -853,7 +1216,9 @@ class _MapTopChrome extends StatelessWidget {
                     ),
                     Container(
                       padding: EdgeInsets.symmetric(
-                          horizontal: 9.w, vertical: 5.h),
+                        horizontal: 9.w,
+                        vertical: 5.h,
+                      ),
                       decoration: BoxDecoration(
                         color: liveColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20.r),
@@ -913,8 +1278,7 @@ class _MapTopChrome extends StatelessWidget {
                         SizedBox(width: 8.w),
                         _MapKpiChip(
                           icon: Icons.local_shipping_outlined,
-                          value:
-                              '${snap.activeVehicles}/${snap.totalVehicles}',
+                          value: '${snap.activeVehicles}/${snap.totalVehicles}',
                           hint: 'Fleet',
                           color: AppColors.priorityP2,
                         ),
@@ -1114,43 +1478,56 @@ class _MapLegend extends StatelessWidget {
         border: Border.all(color: AppColors.borderDefault),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('LEGEND',
-              style: TextStyle(
-                  fontSize: 8.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.secondaryTextDefault,
-                  letterSpacing: 1.2)),
+          Text(
+            'LEGEND',
+            style: TextStyle(
+              fontSize: 8.sp,
+              fontWeight: FontWeight.w800,
+              color: AppColors.secondaryTextDefault,
+              letterSpacing: 1.2,
+            ),
+          ),
           SizedBox(height: 6.h),
-          Text('Routes (M4.1)',
-              style: TextStyle(
-                  fontSize: 8.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondaryTextDefault)),
+          Text(
+            'Routes (M4.1)',
+            style: TextStyle(
+              fontSize: 8.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondaryTextDefault,
+            ),
+          ),
           SizedBox(height: 2.h),
           _LegendLine(color: const Color(0xFF607D8B), label: 'Road'),
           _LegendLine(color: const Color(0xFF1565C0), label: 'River'),
           _LegendLine(color: const Color(0xFF6A1B9A), label: 'Airway'),
+          _LegendLine(color: AppColors.dangerSurfaceDefault, label: 'Flooded'),
           _LegendLine(
-              color: AppColors.dangerSurfaceDefault, label: 'Flooded'),
+            color: AppColors.warningSurfaceDefault,
+            label: 'High Risk',
+          ),
           _LegendLine(
-              color: AppColors.warningSurfaceDefault, label: 'High Risk'),
-          _LegendLine(
-              color: AppColors.primarySurfaceDefault, label: 'Active Route'),
+            color: AppColors.primarySurfaceDefault,
+            label: 'Active Route',
+          ),
           SizedBox(height: 6.h),
-          Text('Nodes',
-              style: TextStyle(
-                  fontSize: 8.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondaryTextDefault)),
+          Text(
+            'Nodes',
+            style: TextStyle(
+              fontSize: 8.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondaryTextDefault,
+            ),
+          ),
           SizedBox(height: 2.h),
           _LegendDot(color: AppColors.nodeCommand, label: 'Command HQ'),
           _LegendDot(color: AppColors.nodeReliefCamp, label: 'Relief Camp'),
@@ -1176,15 +1553,21 @@ class _LegendLine extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-              width: 18,
-              height: 3,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(2))),
+            width: 18,
+            height: 3,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           SizedBox(width: 6.w),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 9.5.sp,
-                  color: AppColors.primaryTextDefault)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5.sp,
+              color: AppColors.primaryTextDefault,
+            ),
+          ),
         ],
       ),
     );
@@ -1204,15 +1587,18 @@ class _LegendDot extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-              width: 10,
-              height: 10,
-              decoration:
-                  BoxDecoration(color: color, shape: BoxShape.circle)),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           SizedBox(width: 6.w),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 9.5.sp,
-                  color: AppColors.primaryTextDefault)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5.sp,
+              color: AppColors.primaryTextDefault,
+            ),
+          ),
         ],
       ),
     );
@@ -1226,10 +1612,11 @@ class _ZoomControls extends StatelessWidget {
   final VoidCallback onZoomOut;
   final VoidCallback onCenter;
 
-  const _ZoomControls(
-      {required this.onZoomIn,
-      required this.onZoomOut,
-      required this.onCenter});
+  const _ZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onCenter,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1240,9 +1627,10 @@ class _ZoomControls extends StatelessWidget {
         border: Border.all(color: AppColors.borderDefault),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -1272,8 +1660,7 @@ class _ZoomBtn extends StatelessWidget {
       child: SizedBox(
         width: 36,
         height: 36,
-        child:
-            Icon(icon, size: 18.sp, color: AppColors.primaryTextDefault),
+        child: Icon(icon, size: 18.sp, color: AppColors.primaryTextDefault),
       ),
     );
   }
@@ -1286,20 +1673,19 @@ class _NodeDetailPanel extends StatelessWidget {
   final Map<String, dynamic>? mlPrediction;
   final VoidCallback onClose;
 
-  const _NodeDetailPanel(
-      {required this.node,
-      required this.onClose,
-      this.mlPrediction});
+  const _NodeDetailPanel({
+    required this.node,
+    required this.onClose,
+    this.mlPrediction,
+  });
 
   @override
   Widget build(BuildContext context) {
     final color = _nodeColor(node.type, node.isFlooded);
     final hasCapacity = node.capacity != null && node.capacity! > 0;
-    final occupancyPct =
-        hasCapacity ? node.occupancy / node.capacity! : 0.0;
+    final occupancyPct = hasCapacity ? node.occupancy / node.capacity! : 0.0;
     final ml = mlPrediction;
-    final mlRisk =
-        ml != null ? (ml['risk_score'] as num).toDouble() : null;
+    final mlRisk = ml != null ? (ml['risk_score'] as num).toDouble() : null;
 
     return Container(
       padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 32.h),
@@ -1309,7 +1695,10 @@ class _NodeDetailPanel extends StatelessWidget {
         border: Border(top: BorderSide(color: color, width: 3)),
         boxShadow: const [
           BoxShadow(
-              color: Colors.black26, blurRadius: 24, offset: Offset(0, -4))
+            color: Colors.black26,
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: Column(
@@ -1317,92 +1706,114 @@ class _NodeDetailPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _Handle(),
-          Row(children: [
-            Container(
-              padding: EdgeInsets.all(10.w),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12.r),
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10.w),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(_nodeIcon(node.type), color: color, size: 22.sp),
               ),
-              child: Icon(_nodeIcon(node.type), color: color, size: 22.sp),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(node.name,
-                        style: TextStyle(
-                            fontSize: 15.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTextDefault)),
-                    SizedBox(height: 4.h),
-                    Row(children: [
-                      _Badge(
-                          label: _nodeTypeLabel(node.type), color: color),
-                      if (node.isFlooded) ...[
-                        SizedBox(width: 6.w),
-                        _Badge(
-                            label: 'FLOODED',
-                            color: AppColors.dangerSurfaceDefault),
-                      ],
-                    ]),
-                  ]),
-            ),
-            IconButton(
-                onPressed: onClose,
-                icon: Icon(Icons.close,
-                    size: 20.sp,
-                    color: AppColors.secondaryTextDefault)),
-          ]),
-          SizedBox(height: 14.h),
-          Row(children: [
-            _PanelStat(
-                label: 'Code', value: node.code, icon: Icons.tag),
-            SizedBox(width: 12.w),
-            _PanelStat(
-              label: 'Lat / Lng',
-              value:
-                  '${node.lat.toStringAsFixed(4)}, ${node.lng.toStringAsFixed(4)}',
-              icon: Icons.location_on_outlined,
-            ),
-          ]),
-          if (hasCapacity) ...[
-            SizedBox(height: 12.h),
-            Row(children: [
-              Icon(Icons.people_outline,
-                  size: 13.sp,
-                  color: AppColors.secondaryTextDefault),
-              SizedBox(width: 6.w),
-              Text('Occupancy',
-                  style: TextStyle(
-                      fontSize: 11.sp,
-                      color: AppColors.secondaryTextDefault)),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4.r),
-                  child: LinearProgressIndicator(
-                    value: occupancyPct.clamp(0.0, 1.0),
-                    backgroundColor: AppColors.borderDefault,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      occupancyPct > 0.85
-                          ? AppColors.dangerSurfaceDefault
-                          : occupancyPct > 0.6
-                              ? AppColors.warningSurfaceDefault
-                              : AppColors.primarySurfaceDefault,
+                    Text(
+                      node.name,
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextDefault,
+                      ),
                     ),
-                    minHeight: 7,
-                  ),
+                    SizedBox(height: 4.h),
+                    Row(
+                      children: [
+                        _Badge(label: _nodeTypeLabel(node.type), color: color),
+                        if (node.isFlooded) ...[
+                          SizedBox(width: 6.w),
+                          _Badge(
+                            label: 'FLOODED',
+                            color: AppColors.dangerSurfaceDefault,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(width: 8.w),
-              Text('${node.occupancy}/${node.capacity}',
+              IconButton(
+                onPressed: onClose,
+                icon: Icon(
+                  Icons.close,
+                  size: 20.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          Row(
+            children: [
+              _PanelStat(label: 'Code', value: node.code, icon: Icons.tag),
+              SizedBox(width: 12.w),
+              _PanelStat(
+                label: 'Lat / Lng',
+                value:
+                    '${node.lat.toStringAsFixed(4)}, ${node.lng.toStringAsFixed(4)}',
+                icon: Icons.location_on_outlined,
+              ),
+            ],
+          ),
+          if (hasCapacity) ...[
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 13.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'Occupancy',
                   style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryTextDefault)),
-            ]),
+                    fontSize: 11.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.r),
+                    child: LinearProgressIndicator(
+                      value: occupancyPct.clamp(0.0, 1.0),
+                      backgroundColor: AppColors.borderDefault,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        occupancyPct > 0.85
+                            ? AppColors.dangerSurfaceDefault
+                            : occupancyPct > 0.6
+                            ? AppColors.warningSurfaceDefault
+                            : AppColors.primarySurfaceDefault,
+                      ),
+                      minHeight: 7,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  '${node.occupancy}/${node.capacity}',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+              ],
+            ),
           ],
           if (ml != null && mlRisk != null) ...[
             SizedBox(height: 14.h),
@@ -1421,19 +1832,20 @@ class _EdgeDetailPanel extends StatelessWidget {
   final Map<String, dynamic>? mlPrediction;
   final VoidCallback onClose;
 
-  const _EdgeDetailPanel(
-      {required this.edge,
-      required this.onClose,
-      this.mlPrediction});
+  const _EdgeDetailPanel({
+    required this.edge,
+    required this.onClose,
+    this.mlPrediction,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isCritical = edge.isFlooded || edge.isBlocked;
-    final color =
-        isCritical ? AppColors.dangerSurfaceDefault : _edgeColor(edge.type);
+    final color = isCritical
+        ? AppColors.dangerSurfaceDefault
+        : _edgeColor(edge.type);
     final ml = mlPrediction;
-    final mlRisk =
-        ml != null ? (ml['risk_score'] as num).toDouble() : null;
+    final mlRisk = ml != null ? (ml['risk_score'] as num).toDouble() : null;
 
     return Container(
       padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 32.h),
@@ -1443,7 +1855,10 @@ class _EdgeDetailPanel extends StatelessWidget {
         border: Border(top: BorderSide(color: color, width: 3)),
         boxShadow: const [
           BoxShadow(
-              color: Colors.black26, blurRadius: 24, offset: Offset(0, -4))
+            color: Colors.black26,
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: Column(
@@ -1451,60 +1866,78 @@ class _EdgeDetailPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _Handle(),
-          Row(children: [
-            Container(
-              padding: EdgeInsets.all(10.w),
-              decoration: BoxDecoration(
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10.w),
+                decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12.r)),
-              child: Icon(Icons.route, color: color, size: 22.sp),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(Icons.route, color: color, size: 22.sp),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Route ${edge.code}',
-                        style: TextStyle(
-                            fontSize: 15.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTextDefault)),
+                    Text(
+                      'Route ${edge.code}',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextDefault,
+                      ),
+                    ),
                     SizedBox(height: 4.h),
-                    Row(children: [
-                      _EdgeTypeBadge(type: edge.type),
-                      if (edge.isFlooded) ...[
-                        SizedBox(width: 6.w),
-                        _Badge(
+                    Row(
+                      children: [
+                        _EdgeTypeBadge(type: edge.type),
+                        if (edge.isFlooded) ...[
+                          SizedBox(width: 6.w),
+                          _Badge(
                             label: 'FLOODED',
-                            color: AppColors.dangerSurfaceDefault),
-                      ],
-                      if (edge.isBlocked) ...[
-                        SizedBox(width: 6.w),
-                        _Badge(
+                            color: AppColors.dangerSurfaceDefault,
+                          ),
+                        ],
+                        if (edge.isBlocked) ...[
+                          SizedBox(width: 6.w),
+                          _Badge(
                             label: 'BLOCKED',
-                            color: AppColors.warningSurfaceDefault),
+                            color: AppColors.warningSurfaceDefault,
+                          ),
+                        ],
                       ],
-                    ]),
-                  ]),
-            ),
-            IconButton(
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
                 onPressed: onClose,
-                icon: Icon(Icons.close,
-                    size: 20.sp,
-                    color: AppColors.secondaryTextDefault)),
-          ]),
+                icon: Icon(
+                  Icons.close,
+                  size: 20.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ],
+          ),
           SizedBox(height: 14.h),
-          Row(children: [
-            _PanelStat(
+          Row(
+            children: [
+              _PanelStat(
                 label: 'Travel Time',
                 value: '${edge.travelMins} min',
-                icon: Icons.timer_outlined),
-            SizedBox(width: 12.w),
-            _PanelStat(
+                icon: Icons.timer_outlined,
+              ),
+              SizedBox(width: 12.w),
+              _PanelStat(
                 label: 'Base Risk',
                 value: '${(edge.risk * 100).toStringAsFixed(0)}%',
-                icon: Icons.warning_amber_outlined),
-          ]),
+                icon: Icons.warning_amber_outlined,
+              ),
+            ],
+          ),
           if (ml != null && mlRisk != null) ...[
             SizedBox(height: 14.h),
             _MlRiskBlock(ml: ml, mlRisk: mlRisk, isEdge: true),
@@ -1521,8 +1954,7 @@ class _VehicleDetailPanel extends StatelessWidget {
   final Map<String, dynamic> vehicle;
   final VoidCallback onClose;
 
-  const _VehicleDetailPanel(
-      {required this.vehicle, required this.onClose});
+  const _VehicleDetailPanel({required this.vehicle, required this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -1546,7 +1978,10 @@ class _VehicleDetailPanel extends StatelessWidget {
         border: Border(top: BorderSide(color: color, width: 3)),
         boxShadow: const [
           BoxShadow(
-              color: Colors.black26, blurRadius: 24, offset: Offset(0, -4))
+            color: Colors.black26,
+            blurRadius: 24,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: Column(
@@ -1554,55 +1989,68 @@ class _VehicleDetailPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _Handle(),
-          Row(children: [
-            Container(
-              padding: EdgeInsets.all(10.w),
-              decoration: BoxDecoration(
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10.w),
+                decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12.r)),
-              child:
-                  Icon(_vehicleIcon(type), color: color, size: 22.sp),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(_vehicleIcon(type), color: color, size: 22.sp),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('$identifier — $name',
-                        style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTextDefault)),
+                    Text(
+                      '$identifier — $name',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextDefault,
+                      ),
+                    ),
                     SizedBox(height: 4.h),
                     _Badge(
-                        label: status
-                            .replaceAll('_', ' ')
-                            .toUpperCase(),
-                        color: color),
-                  ]),
-            ),
-            IconButton(
+                      label: status.replaceAll('_', ' ').toUpperCase(),
+                      color: color,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
                 onPressed: onClose,
-                icon: Icon(Icons.close,
-                    size: 20.sp,
-                    color: AppColors.secondaryTextDefault)),
-          ]),
+                icon: Icon(
+                  Icons.close,
+                  size: 20.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ],
+          ),
           SizedBox(height: 14.h),
-          Row(children: [
-            _PanelStat(
+          Row(
+            children: [
+              _PanelStat(
                 label: 'Operator',
                 value: operatorName,
-                icon: Icons.person_outline),
-            SizedBox(width: 12.w),
-            _PanelStat(
+                icon: Icons.person_outline,
+              ),
+              SizedBox(width: 12.w),
+              _PanelStat(
                 label: 'Type',
                 value: type[0].toUpperCase() + type.substring(1),
-                icon: Icons.category_outlined),
-          ]),
+                icon: Icons.category_outlined,
+              ),
+            ],
+          ),
           if (level != null) ...[
             SizedBox(height: 12.h),
-            Row(children: [
-              Icon(
+            Row(
+              children: [
+                Icon(
                   battery != null
                       ? Icons.battery_charging_full
                       : Icons.local_gas_station_outlined,
@@ -1610,38 +2058,46 @@ class _VehicleDetailPanel extends StatelessWidget {
                   color: level > 60
                       ? AppColors.primarySurfaceDefault
                       : level > 30
-                          ? AppColors.warningSurfaceDefault
-                          : AppColors.dangerSurfaceDefault),
-              SizedBox(width: 6.w),
-              Text(levelLabel,
+                      ? AppColors.warningSurfaceDefault
+                      : AppColors.dangerSurfaceDefault,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  levelLabel,
                   style: TextStyle(
-                      fontSize: 11.sp,
-                      color: AppColors.secondaryTextDefault)),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4.r),
-                  child: LinearProgressIndicator(
-                    value: level.toDouble() / 100,
-                    backgroundColor: AppColors.borderDefault,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      level > 60
-                          ? AppColors.primarySurfaceDefault
-                          : level > 30
-                              ? AppColors.warningSurfaceDefault
-                              : AppColors.dangerSurfaceDefault,
-                    ),
-                    minHeight: 7,
+                    fontSize: 11.sp,
+                    color: AppColors.secondaryTextDefault,
                   ),
                 ),
-              ),
-              SizedBox(width: 8.w),
-              Text('${level.toInt()}%',
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.r),
+                    child: LinearProgressIndicator(
+                      value: level.toDouble() / 100,
+                      backgroundColor: AppColors.borderDefault,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        level > 60
+                            ? AppColors.primarySurfaceDefault
+                            : level > 30
+                            ? AppColors.warningSurfaceDefault
+                            : AppColors.dangerSurfaceDefault,
+                      ),
+                      minHeight: 7,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  '${level.toInt()}%',
                   style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryTextDefault)),
-            ]),
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -1656,16 +2112,19 @@ class _MlRiskBlock extends StatelessWidget {
   final double mlRisk;
   final bool isEdge;
 
-  const _MlRiskBlock(
-      {required this.ml, required this.mlRisk, this.isEdge = false});
+  const _MlRiskBlock({
+    required this.ml,
+    required this.mlRisk,
+    this.isEdge = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final riskColor = mlRisk > 0.7
         ? AppColors.dangerSurfaceDefault
         : mlRisk > 0.4
-            ? AppColors.warningSurfaceDefault
-            : AppColors.primarySurfaceDefault;
+        ? AppColors.warningSurfaceDefault
+        : AppColors.primarySurfaceDefault;
     final isAlert = ml['predicted_impassable_2h'] as bool;
     final factors = ml['contributing_factors'] as List;
 
@@ -1679,27 +2138,37 @@ class _MlRiskBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.auto_graph,
-                size: 13.sp, color: AppColors.warningSurfaceDefault),
-            SizedBox(width: 6.w),
-            Text(
-              isEdge ? 'ML Route Risk (M7)' : 'ML Flood Risk (M7)',
-              style: TextStyle(
+          Row(
+            children: [
+              Icon(
+                Icons.auto_graph,
+                size: 13.sp,
+                color: AppColors.warningSurfaceDefault,
+              ),
+              SizedBox(width: 6.w),
+              Text(
+                isEdge ? 'ML Route Risk (M7)' : 'ML Flood Risk (M7)',
+                style: TextStyle(
                   fontSize: 11.sp,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primaryTextDefault),
-            ),
-            const Spacer(),
-            Text(ml['model_version'] as String,
+                  color: AppColors.primaryTextDefault,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                ml['model_version'] as String,
                 style: TextStyle(
-                    fontSize: 9.sp,
-                    color: AppColors.secondaryTextDefault)),
-          ]),
+                  fontSize: 9.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ],
+          ),
           SizedBox(height: 10.h),
-          Row(children: [
-            Expanded(
-              child: Column(
+          Row(
+            children: [
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
@@ -1707,8 +2176,7 @@ class _MlRiskBlock extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: mlRisk,
                         backgroundColor: AppColors.borderDefault,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(riskColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(riskColor),
                         minHeight: 8,
                       ),
                     ),
@@ -1716,70 +2184,84 @@ class _MlRiskBlock extends StatelessWidget {
                     Text(
                       '${(mlRisk * 100).toStringAsFixed(1)}% risk  ·  conf ${((ml['confidence'] as num) * 100).toStringAsFixed(0)}%',
                       style: TextStyle(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w700,
-                          color: riskColor),
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w700,
+                        color: riskColor,
+                      ),
                     ),
-                  ]),
-            ),
-            SizedBox(width: 12.w),
-            Container(
-              padding:
-                  EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-              decoration: BoxDecoration(
-                color: isAlert
-                    ? AppColors.dangerSurfaceTint
-                    : AppColors.primarySurfaceTint,
-                borderRadius: BorderRadius.circular(8.r),
-                border: Border.all(
-                    color: isAlert
-                        ? AppColors.dangerSurfaceDefault
-                            .withValues(alpha: 0.4)
-                        : AppColors.primarySurfaceDefault
-                            .withValues(alpha: 0.4)),
+                  ],
+                ),
               ),
-              child: Column(children: [
-                Icon(
-                    isAlert
-                        ? Icons.dangerous_outlined
-                        : Icons.check_circle_outline,
-                    size: 18.sp,
+              SizedBox(width: 12.w),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                decoration: BoxDecoration(
+                  color: isAlert
+                      ? AppColors.dangerSurfaceTint
+                      : AppColors.primarySurfaceTint,
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(
                     color: isAlert
-                        ? AppColors.dangerSurfaceDefault
-                        : AppColors.primarySurfaceDefault),
-                SizedBox(height: 2.h),
-                Text(isAlert ? 'Alert\n2h' : 'Safe\n2h+',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
+                        ? AppColors.dangerSurfaceDefault.withValues(alpha: 0.4)
+                        : AppColors.primarySurfaceDefault.withValues(
+                            alpha: 0.4,
+                          ),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      isAlert
+                          ? Icons.dangerous_outlined
+                          : Icons.check_circle_outline,
+                      size: 18.sp,
+                      color: isAlert
+                          ? AppColors.dangerSurfaceDefault
+                          : AppColors.primarySurfaceDefault,
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      isAlert ? 'Alert\n2h' : 'Safe\n2h+',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
                         fontSize: 9.sp,
                         fontWeight: FontWeight.w700,
                         color: isAlert
                             ? AppColors.dangerSurfaceDefault
-                            : AppColors.primarySurfaceDefault)),
-              ]),
-            ),
-          ]),
+                            : AppColors.primarySurfaceDefault,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           if (factors.isNotEmpty) ...[
             SizedBox(height: 8.h),
             Wrap(
               spacing: 5.w,
               runSpacing: 4.h,
               children: factors
-                  .map((f) => Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 7.w, vertical: 3.h),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(4.r),
-                          border: Border.all(
-                              color: AppColors.borderDefault),
+                  .map(
+                    (f) => Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 7.w,
+                        vertical: 3.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4.r),
+                        border: Border.all(color: AppColors.borderDefault),
+                      ),
+                      child: Text(
+                        f as String,
+                        style: TextStyle(
+                          fontSize: 9.5.sp,
+                          color: AppColors.secondaryTextDefault,
                         ),
-                        child: Text(f as String,
-                            style: TextStyle(
-                                fontSize: 9.5.sp,
-                                color:
-                                    AppColors.secondaryTextDefault)),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ],
@@ -1800,8 +2282,9 @@ class _Handle extends StatelessWidget {
         height: 4,
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-            color: AppColors.borderDefault,
-            borderRadius: BorderRadius.circular(2)),
+          color: AppColors.borderDefault,
+          borderRadius: BorderRadius.circular(2),
+        ),
       ),
     );
   }
@@ -1817,14 +2300,18 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
       decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(5.r),
-          border: Border.all(color: color.withValues(alpha: 0.35))),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 10.sp,
-              color: color,
-              fontWeight: FontWeight.w700)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(5.r),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.sp,
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -1844,18 +2331,25 @@ class _EdgeTypeBadge extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
       decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(5.r),
-          border: Border.all(color: color.withValues(alpha: 0.35))),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 10.sp, color: color),
-        SizedBox(width: 3.w),
-        Text(type.toUpperCase(),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(5.r),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10.sp, color: color),
+          SizedBox(width: 3.w),
+          Text(
+            type.toUpperCase(),
             style: TextStyle(
-                fontSize: 9.sp,
-                color: color,
-                fontWeight: FontWeight.w700)),
-      ]),
+              fontSize: 9.sp,
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1865,8 +2359,11 @@ class _PanelStat extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _PanelStat(
-      {required this.label, required this.value, required this.icon});
+  const _PanelStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1879,16 +2376,22 @@ class _PanelStat extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 10.sp,
-                        color: AppColors.secondaryTextDefault)),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryTextDefault),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -1920,37 +2423,615 @@ class _ErrorView extends StatelessWidget {
                 color: AppColors.dangerSurfaceTint,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.map_outlined,
-                  size: 40.sp,
-                  color: AppColors.dangerSurfaceDefault),
+              child: Icon(
+                Icons.map_outlined,
+                size: 40.sp,
+                color: AppColors.dangerSurfaceDefault,
+              ),
             ),
             SizedBox(height: 20.h),
-            Text('Map unavailable',
-                style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryTextDefault)),
+            Text(
+              'Map unavailable',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryTextDefault,
+              ),
+            ),
             SizedBox(height: 8.h),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13.sp,
-                    color: AppColors.secondaryTextDefault)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.sp,
+                color: AppColors.secondaryTextDefault,
+              ),
+            ),
             SizedBox(height: 24.h),
             ElevatedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text('Retry',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text('Retry', style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primarySurfaceDefault,
-                padding: EdgeInsets.symmetric(
-                    horizontal: 24.w, vertical: 12.h),
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r)),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Simulation FAB ────────────────────────────────────────────────────────────
+
+class _SimFab extends StatelessWidget {
+  final bool active;
+  final VoidCallback onTap;
+  const _SimFab({required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: active ? 'Stop simulation' : 'Simulate route',
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF1E88E5) : Colors.white,
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(
+              color: active ? const Color(0xFF1E88E5) : AppColors.borderDefault,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: active
+                    ? const Color(0xFF1E88E5).withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(
+            active ? Icons.stop_circle_outlined : Icons.route,
+            color: active ? Colors.white : AppColors.secondaryTextDefault,
+            size: 20.sp,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Simulation control panel ──────────────────────────────────────────────────
+
+class _SimControlPanel extends StatelessWidget {
+  final List<_NodeData> nodes;
+  final int sourceId;
+  final int targetId;
+  final bool playing;
+  final double progress; // 0.0 – 1.0
+  final double speed;
+  final bool followMode;
+  final bool hasPath;
+  final void Function(int) onSetSource;
+  final void Function(int) onSetTarget;
+  final VoidCallback onPlay;
+  final VoidCallback onPause;
+  final VoidCallback onReset;
+  final void Function(double) onSpeed;
+  final VoidCallback onFollowToggle;
+
+  const _SimControlPanel({
+    required this.nodes,
+    required this.sourceId,
+    required this.targetId,
+    required this.playing,
+    required this.progress,
+    required this.speed,
+    required this.followMode,
+    required this.hasPath,
+    required this.onSetSource,
+    required this.onSetTarget,
+    required this.onPlay,
+    required this.onPause,
+    required this.onReset,
+    required this.onSpeed,
+    required this.onFollowToggle,
+  });
+
+  String _nodeName(int id) {
+    if (id < 0) return 'Pick node…';
+    try {
+      return nodes.firstWhere((n) => n.id == id).name;
+    } catch (_) {
+      return 'Node $id';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final srcName = _nodeName(sourceId);
+    final tgtName = _nodeName(targetId);
+    final progressPct = (progress * 100).toInt();
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 28.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+        border: const Border(
+          top: BorderSide(color: Color(0xFF1E88E5), width: 3),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 20,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.borderDefault,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // ── Header ──────────────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: const Icon(
+                  Icons.route,
+                  color: Color(0xFF1E88E5),
+                  size: 18,
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Route Simulation',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextDefault,
+                      ),
+                    ),
+                    Text(
+                      hasPath
+                          ? 'Animating route  ·  $progressPct%'
+                          : 'Select source & destination to begin',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        color: AppColors.secondaryTextDefault,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _SimChip(
+                icon: followMode ? Icons.my_location : Icons.location_searching,
+                label: 'Follow',
+                active: followMode,
+                onTap: onFollowToggle,
+                activeColor: const Color(0xFF1E88E5),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 12.h),
+
+          // ── Source / Target pickers ──────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _SimNodeDropdown(
+                  icon: Icons.trip_origin,
+                  color: AppColors.primarySurfaceDefault,
+                  label: 'From',
+                  selected: srcName,
+                  nodes: nodes,
+                  onSelected: onSetSource,
+                  excludeId: targetId,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.w),
+                child: const Icon(
+                  Icons.arrow_forward,
+                  size: 16,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+              Expanded(
+                child: _SimNodeDropdown(
+                  icon: Icons.place,
+                  color: AppColors.dangerSurfaceDefault,
+                  label: 'To',
+                  selected: tgtName,
+                  nodes: nodes,
+                  onSelected: onSetTarget,
+                  excludeId: sourceId,
+                ),
+              ),
+            ],
+          ),
+
+          if (hasPath) ...[
+            SizedBox(height: 12.h),
+            // ── Progress bar ──────────────────────────────────────────────
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6.r),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: AppColors.borderDefault,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFF1E88E5),
+                ),
+                minHeight: 6,
+              ),
+            ),
+          ],
+
+          SizedBox(height: 12.h),
+
+          // ── Player controls row ──────────────────────────────────────────
+          Row(
+            children: [
+              _SimActionBtn(
+                icon: Icons.replay,
+                onTap: onReset,
+                enabled: hasPath,
+              ),
+              SizedBox(width: 8.w),
+              GestureDetector(
+                onTap: hasPath ? (playing ? onPause : onPlay) : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 20.w,
+                    vertical: 10.h,
+                  ),
+                  decoration: BoxDecoration(
+                    color: hasPath
+                        ? const Color(0xFF1E88E5)
+                        : AppColors.borderDefault,
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 4.w),
+                      Text(
+                        playing ? 'Pause' : 'Play',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.sp,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Speed:',
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+              SizedBox(width: 6.w),
+              ...[0.5, 1.0, 2.0, 5.0].map(
+                (s) => Padding(
+                  padding: EdgeInsets.only(left: 4.w),
+                  child: _SimChip(
+                    label: s == 0.5 ? '½×' : '${s.toInt()}×',
+                    active: speed == s,
+                    onTap: () => onSpeed(s),
+                    activeColor: const Color(0xFF1E88E5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Simulation node dropdown ──────────────────────────────────────────────────
+
+class _SimNodeDropdown extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String selected;
+  final List<_NodeData> nodes;
+  final void Function(int) onSelected;
+  final int excludeId;
+
+  const _SimNodeDropdown({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.selected,
+    required this.nodes,
+    required this.onSelected,
+    required this.excludeId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final available = nodes.where((n) => n.id != excludeId).toList();
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => DraggableScrollableSheet(
+            initialChildSize: 0.55,
+            maxChildSize: 0.85,
+            minChildSize: 0.35,
+            builder: (ctx, scroll) => Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: EdgeInsets.symmetric(vertical: 12.h),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderDefault,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+                    child: Row(
+                      children: [
+                        Icon(icon, color: color, size: 18.sp),
+                        SizedBox(width: 8.w),
+                        Text(
+                          'Select $label node',
+                          style: TextStyle(
+                            fontSize: 15.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scroll,
+                      itemCount: available.length,
+                      itemBuilder: (ctx2, i) {
+                        final n = available[i];
+                        final nc = _nodeColor(n.type, n.isFlooded);
+                        return ListTile(
+                          leading: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: nc.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(_nodeIcon(n.type), color: nc, size: 16),
+                          ),
+                          title: Text(
+                            n.name,
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryTextDefault,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${_nodeTypeLabel(n.type)}  ·  ${n.code}',
+                            style: TextStyle(
+                              fontSize: 10.sp,
+                              color: AppColors.secondaryTextDefault,
+                            ),
+                          ),
+                          trailing: n.isFlooded
+                              ? Icon(
+                                  Icons.water,
+                                  color: AppColors.dangerSurfaceDefault,
+                                  size: 16.sp,
+                                )
+                              : null,
+                          onTap: () {
+                            Navigator.pop(ctx2);
+                            onSelected(n.id);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: AppColors.colorBackground,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: AppColors.borderDefault),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 13.sp, color: color),
+            SizedBox(width: 6.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 9.sp,
+                      color: AppColors.secondaryTextDefault,
+                    ),
+                  ),
+                  Text(
+                    selected,
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryTextDefault,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.expand_more,
+              size: 16.sp,
+              color: AppColors.secondaryTextDefault,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Simulation chip ───────────────────────────────────────────────────────────
+
+class _SimChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color activeColor;
+  final IconData? icon;
+
+  const _SimChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    required this.activeColor,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(horizontal: 9.w, vertical: 5.h),
+        decoration: BoxDecoration(
+          color: active ? activeColor : AppColors.colorBackground,
+          borderRadius: BorderRadius.circular(8.r),
+          border: Border.all(
+            color: active ? activeColor : AppColors.borderDefault,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 12.sp,
+                color: active ? Colors.white : AppColors.secondaryTextDefault,
+              ),
+              SizedBox(width: 3.w),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.white : AppColors.primaryTextDefault,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Simulation action button ──────────────────────────────────────────────────
+
+class _SimActionBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  const _SimActionBtn({
+    required this.icon,
+    required this.onTap,
+    required this.enabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.colorBackground,
+          borderRadius: BorderRadius.circular(10.r),
+          border: Border.all(color: AppColors.borderDefault),
+        ),
+        child: Icon(
+          icon,
+          size: 18.sp,
+          color: enabled
+              ? AppColors.primaryTextDefault
+              : AppColors.disabledTextDefault,
         ),
       ),
     );

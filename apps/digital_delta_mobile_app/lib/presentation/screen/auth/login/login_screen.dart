@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,8 +13,6 @@ import '../../../util/routes.dart';
 import '../../../util/toaster.dart';
 import '../notifier/provider.dart';
 import '../state/auth_ui_state.dart';
-import '../widget/auth_divider.dart';
-import '../widget/social_login_section.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,29 +21,16 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final GlobalKey<FormBuilderState> _formKey = GlobalKey<FormBuilderState>();
   bool _obscurePassword = true;
   String? _deviceId;
   bool _requiresOtp = false;
 
-  late final AnimationController _bgController;
-
   @override
   void initState() {
     super.initState();
-    _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 15),
-    )..repeat();
     _loadDeviceInfo();
-  }
-
-  @override
-  void dispose() {
-    _bgController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadDeviceInfo() async {
@@ -93,16 +76,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         .maybeWhen(loading: () => true, orElse: () => false);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          AnimatedBuilder(
-            animation: _bgController,
-            builder: (_, __) => CustomPaint(
-              size: Size(1.sw, 1.sh),
-              painter: _AuthBgPainter(progress: _bgController.value),
-            ),
-          ),
           Column(
             children: [
               _BrandedHeader(
@@ -121,9 +97,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 24,
-                        offset: const Offset(0, -4),
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, -2),
                       ),
                     ],
                   ),
@@ -391,7 +367,7 @@ class _BrandedHeader extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: AppColors.primaryTextDefault,
                       letterSpacing: 2.2,
                     ),
                   ),
@@ -437,7 +413,7 @@ class _BrandedHeader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 28.sp,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: AppColors.primaryTextDefault,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -446,7 +422,7 @@ class _BrandedHeader extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   fontSize: 14.sp,
-                  color: Colors.white.withValues(alpha: 0.55),
+                  color: AppColors.secondaryTextDefault,
                   height: 1.4,
                 ),
               ),
@@ -510,38 +486,4 @@ class _DeviceChip extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AuthBgPainter extends CustomPainter {
-  final double progress;
-  const _AuthBgPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.025)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    const spacing = 36.0;
-    for (double x = 0; x <= size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height * 0.65), linePaint);
-    }
-    for (double y = 0; y <= size.height * 0.65; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-    }
-
-    final orb = Paint()
-      ..color = AppColors.primarySurfaceDefault.withValues(alpha: 0.08)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 70)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      Offset(size.width * 0.82, size.height * 0.1),
-      130.0 + math.sin(progress * 2 * math.pi) * 15,
-      orb,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_AuthBgPainter old) => old.progress != progress;
 }

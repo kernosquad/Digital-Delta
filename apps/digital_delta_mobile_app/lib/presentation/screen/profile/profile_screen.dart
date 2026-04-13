@@ -247,20 +247,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     subtitle: 'View data sync status when offline',
                     onTap: () {},
                   ),
-                  SizedBox(height: 8.h),
-                  _ProfileMenuItem(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    subtitle: 'Manage notification preferences',
-                    onTap: () {},
-                  ),
-                  SizedBox(height: 8.h),
-                  _ProfileMenuItem(
-                    icon: Icons.language_outlined,
-                    title: 'Language',
-                    subtitle: 'English',
-                    onTap: () {},
-                  ),
+                  // SizedBox(height: 8.h),
+                  // _ProfileMenuItem(
+                  //   icon: Icons.notifications_outlined,
+                  //   title: 'Notifications',
+                  //   subtitle: 'Manage notification preferences',
+                  //   onTap: () {},
+                  // ),
+                  // SizedBox(height: 8.h),
+                  // _ProfileMenuItem(
+                  //   icon: Icons.language_outlined,
+                  //   title: 'Language',
+                  //   subtitle: 'English',
+                  //   onTap: () {},
+                  // ),
 
                   // ── Audit Logs (camp_commander + sync_admin) ──────────────
                   RoleGate(

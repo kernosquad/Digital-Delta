@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,29 +20,16 @@ class RegisterScreen extends ConsumerStatefulWidget {
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends ConsumerState<RegisterScreen>
-    with SingleTickerProviderStateMixin {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final GlobalKey<FormBuilderState> _formKey = GlobalKey<FormBuilderState>();
   bool _obscurePassword = true;
   String? _deviceId;
-  bool _isOnline = true;
-
-  late final AnimationController _bgController;
+  final bool _isOnline = true;
 
   @override
   void initState() {
     super.initState();
-    _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 15),
-    )..repeat();
     _loadDeviceInfo();
-  }
-
-  @override
-  void dispose() {
-    _bgController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadDeviceInfo() async {
@@ -93,16 +78,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         .maybeWhen(loading: () => true, orElse: () => false);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          AnimatedBuilder(
-            animation: _bgController,
-            builder: (_, __) => CustomPaint(
-              size: Size(1.sw, 1.sh),
-              painter: _RegisterBgPainter(progress: _bgController.value),
-            ),
-          ),
           Column(
             children: [
               _RegisterHeader(),
@@ -117,9 +95,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 24,
-                        offset: const Offset(0, -4),
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, -2),
                       ),
                     ],
                   ),
@@ -422,7 +400,7 @@ class _RegisterHeader extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: AppColors.primaryTextDefault,
                       letterSpacing: 2.2,
                     ),
                   ),
@@ -468,7 +446,7 @@ class _RegisterHeader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 26.sp,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: AppColors.primaryTextDefault,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -477,7 +455,7 @@ class _RegisterHeader extends StatelessWidget {
                 'Create your Digital Delta account',
                 style: TextStyle(
                   fontSize: 14.sp,
-                  color: Colors.white.withValues(alpha: 0.55),
+                  color: AppColors.secondaryTextDefault,
                 ),
               ),
             ],
@@ -580,48 +558,4 @@ class _DeviceChip extends StatelessWidget {
       ),
     );
   }
-}
-
-class _RegisterBgPainter extends CustomPainter {
-  final double progress;
-  const _RegisterBgPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.025)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    const spacing = 36.0;
-    for (double x = 0; x <= size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height * 0.55), linePaint);
-    }
-    for (double y = 0; y <= size.height * 0.55; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-    }
-
-    final orb = Paint()
-      ..color = AppColors.primarySurfaceDefault.withValues(alpha: 0.09)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 70)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      Offset(size.width * 0.15, size.height * 0.08),
-      120.0 + math.cos(progress * 2 * math.pi) * 15,
-      orb,
-    );
-
-    final orb2 = Paint()
-      ..color = const Color(0xFF00BCD4).withValues(alpha: 0.05)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      Offset(size.width * 0.9, size.height * 0.18),
-      100.0 + math.sin(progress * 2 * math.pi) * 12,
-      orb2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_RegisterBgPainter old) => old.progress != progress;
 }

@@ -81,7 +81,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget build(BuildContext context) {
     final page = _pages[_currentPage];
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0F1E),
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -114,7 +114,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             style: TextStyle(
                               fontSize: 14.sp,
                               fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                              color: AppColors.primaryTextDefault,
                               letterSpacing: 2.5,
                             ),
                           ),
@@ -133,17 +133,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               vertical: 7.h,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.07),
+                              color: AppColors.colorBackground,
                               borderRadius: BorderRadius.circular(20.r),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.15),
+                                color: AppColors.borderDefault,
                               ),
                             ),
                             child: Text(
                               'Skip',
                               style: TextStyle(
                                 fontSize: 13.sp,
-                                color: Colors.white60,
+                                color: AppColors.secondaryTextDefault,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -181,7 +181,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             decoration: BoxDecoration(
                               color: _currentPage == i
                                   ? page.accentColor
-                                  : Colors.white.withValues(alpha: 0.2),
+                                  : AppColors.borderDefault,
                               borderRadius: BorderRadius.circular(4.r),
                             ),
                           ),
@@ -209,10 +209,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               Routes.login,
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.25),
+                              side: const BorderSide(
+                                color: AppColors.borderDefault,
                               ),
-                              foregroundColor: Colors.white70,
+                              foregroundColor: AppColors.secondaryTextDefault,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14.r),
                               ),
@@ -344,7 +344,7 @@ class _PageContent extends StatelessWidget {
             style: TextStyle(
               fontSize: 34.sp,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: AppColors.primaryTextDefault,
               height: 1.15,
               letterSpacing: -0.5,
             ),
@@ -355,7 +355,7 @@ class _PageContent extends StatelessWidget {
             data.description,
             style: TextStyle(
               fontSize: 15.sp,
-              color: Colors.white.withValues(alpha: 0.6),
+              color: AppColors.secondaryTextDefault,
               height: 1.65,
             ),
             textAlign: TextAlign.center,
@@ -457,7 +457,7 @@ class _TacticalGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.03)
+      ..color = const Color(0xFFE5E7EB).withValues(alpha: 0.8)
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
 
@@ -470,7 +470,7 @@ class _TacticalGridPainter extends CustomPainter {
     }
 
     final orb1 = Paint()
-      ..color = accentColor.withValues(alpha: 0.07)
+      ..color = accentColor.withValues(alpha: 0.13)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(
@@ -480,7 +480,7 @@ class _TacticalGridPainter extends CustomPainter {
     );
 
     final orb2 = Paint()
-      ..color = AppColors.primarySurfaceDark.withValues(alpha: 0.12)
+      ..color = AppColors.primarySurfaceDark.withValues(alpha: 0.07)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(
