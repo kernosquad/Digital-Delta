@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../connectivity/notifier/provider.dart';
 import '../../notifier/app_data_notifier.dart';
 import '../../theme/color.dart';
 
@@ -15,6 +16,10 @@ class FleetScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dataState = ref.watch(appDataNotifierProvider);
+    final isOnline = ref.watch(connectivityNotifierProvider).maybeWhen(
+          online: (_) => true,
+          orElse: () => false,
+        );
 
     return Scaffold(
       backgroundColor: AppColors.colorBackground,
@@ -28,7 +33,17 @@ class FleetScreen extends ConsumerWidget {
             icon: const Icon(Icons.refresh_outlined),
             onPressed: dataState.isLoading
                 ? null
-                : () => ref.read(appDataNotifierProvider.notifier).refresh(),
+                : () async {
+                    if (isOnline) {
+                      await ref
+                          .read(appDataNotifierProvider.notifier)
+                          .syncAndRefresh();
+                    } else {
+                      await ref
+                          .read(appDataNotifierProvider.notifier)
+                          .refresh();
+                    }
+                  },
           ),
         ],
       ),
@@ -38,7 +53,47 @@ class FleetScreen extends ConsumerWidget {
           message: e.toString(),
           onRetry: () => ref.read(appDataNotifierProvider.notifier).refresh(),
         ),
-        data: (snap) => _FleetBody(vehicles: snap.vehicles),
+        data: (snap) => Column(
+          children: [
+            if (!isOnline) const _FleetOfflineBanner(),
+            Expanded(
+              child: _FleetBody(
+                vehicles: snap.vehicles,
+                networkNodes: snap.nodes,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FleetOfflineBanner extends StatelessWidget {
+  const _FleetOfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.warningSurfaceDefault.withValues(alpha: 0.12),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off, size: 18.sp, color: AppColors.statusPending),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: Text(
+                'Offline — fleet list reflects your last synced snapshot from the API cache.',
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  height: 1.3,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -50,7 +105,12 @@ class FleetScreen extends ConsumerWidget {
 
 class _FleetBody extends StatefulWidget {
   final List<Map<String, dynamic>> vehicles;
-  const _FleetBody({required this.vehicles});
+  final List<Map<String, dynamic>> networkNodes;
+
+  const _FleetBody({
+    required this.vehicles,
+    required this.networkNodes,
+  });
 
   @override
   State<_FleetBody> createState() => _FleetBodyState();
@@ -162,12 +222,46 @@ class _FleetBodyState extends State<_FleetBody> {
                   padding: EdgeInsets.all(16.w),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, i) => _VehicleCard(vehicle: filtered[i]),
+                  itemBuilder: (_, i) => _VehicleCard(
+                    vehicle: filtered[i],
+                    locationName: _locationNameForVehicle(
+                      filtered[i],
+                      widget.networkNodes,
+                    ),
+                    operatorName: _operatorLabel(filtered[i]),
+                  ),
                 ),
         ),
       ],
     );
   }
+}
+
+String _locationNameForVehicle(
+  Map<String, dynamic> vehicle,
+  List<Map<String, dynamic>> nodes,
+) {
+  final nested = vehicle['location'];
+  if (nested is Map && nested['name'] != null) {
+    return nested['name'] as String;
+  }
+  final raw = vehicle['current_location_id'];
+  if (raw == null) return '—';
+  final id = (raw as num).toInt();
+  for (final n in nodes) {
+    if ((n['id'] as num).toInt() == id) {
+      return n['name'] as String? ?? '—';
+    }
+  }
+  return 'Location #$id';
+}
+
+String _operatorLabel(Map<String, dynamic> vehicle) {
+  final op = vehicle['operator'];
+  if (op is Map && op['name'] != null) return op['name'] as String;
+  final oid = vehicle['operator_id'];
+  if (oid != null) return 'Operator #$oid';
+  return 'Not assigned';
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +270,14 @@ class _FleetBodyState extends State<_FleetBody> {
 
 class _VehicleCard extends StatelessWidget {
   final Map<String, dynamic> vehicle;
-  const _VehicleCard({required this.vehicle});
+  final String locationName;
+  final String operatorName;
+
+  const _VehicleCard({
+    required this.vehicle,
+    required this.locationName,
+    required this.operatorName,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -188,11 +289,6 @@ class _VehicleCard extends StatelessWidget {
     final battery = vehicle['battery_level'] as num?;
     final level = battery ?? fuel;
     final levelLabel = battery != null ? 'Battery' : 'Fuel';
-    final operatorName =
-        (vehicle['operator'] as Map?)?['name'] as String? ?? 'Not assigned';
-    final locationName =
-        (vehicle['location'] as Map?)?['name'] as String? ?? '—';
-
     final statusColor = _statusColor(status);
     final typeIcon = _typeIcon(type);
 

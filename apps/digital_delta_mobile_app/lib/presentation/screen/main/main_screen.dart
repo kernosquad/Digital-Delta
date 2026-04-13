@@ -6,10 +6,12 @@ import '../../connectivity/notifier/provider.dart';
 import '../../notifier/app_data_notifier.dart';
 import '../../theme/color.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../dashboard/notifier/sync_hub_notifier.dart';
 import '../fleet/fleet_screen.dart';
 import '../home/home_screen.dart';
 import '../map/map_screen.dart';
 import '../profile/profile_screen.dart';
+import 'main_shell_tab_provider.dart';
 
 // ---------------------------------------------------------------------------
 // MainScreen — 5-tab shell with connectivity-triggered data sync
@@ -24,8 +26,6 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  int _currentIndex = 0;
-
   static const List<Widget> _screens = [
     HomeScreen(),
     DashboardScreen(),
@@ -54,17 +54,21 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       );
       if (isNowOnline && !wasOnline) {
         ref.read(appDataNotifierProvider.notifier).syncAndRefresh();
+        ref.read(syncHubProvider.notifier).refreshMetadataOnly();
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(mainShellTabProvider);
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        selectedIndex: currentIndex,
+        onDestinationSelected: (index) =>
+            ref.read(mainShellTabProvider.notifier).state = index,
         backgroundColor: AppColors.surfaceWhite,
         indicatorColor: AppColors.primarySurfaceDefault.withValues(alpha: 0.1),
         destinations: [

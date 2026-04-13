@@ -3,6 +3,7 @@ import '../data/repository/auth_repository_impl.dart';
 import '../data/repository/ble_repository_impl.dart';
 import '../data/service/app_data_service.dart';
 import '../data/service/auth_sync_manager.dart';
+import '../data/service/sync_remote_api_service.dart';
 import '../data/service/sync_mesh_service.dart';
 import '../domain/repository/auth_repository.dart';
 import '../domain/repository/ble_repository.dart';
@@ -19,6 +20,13 @@ Future<void> setUpRepositoryModule() async {
       connectivity: getIt(),
       prefs: getIt(),
       syncMesh: getIt<SyncMeshService>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<SyncRemoteApiService>(
+    () => SyncRemoteApiService(
+      api: getIt(),
+      connectivity: getIt(),
     ),
   );
 

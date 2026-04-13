@@ -9,12 +9,15 @@ class AppDataSnapshot {
   final List<Map<String, dynamic>> vehicles;
   final Map<String, dynamic> networkGraph;
   final List<Map<String, dynamic>> missions;
+  /// When any dashboard/fleet/map feed last got fresh rows into the device cache (API or after sync).
+  final DateTime? dataRefreshedAt;
 
   const AppDataSnapshot({
     required this.dashboardStats,
     required this.vehicles,
     required this.networkGraph,
     required this.missions,
+    this.dataRefreshedAt,
   });
 
   // ── Convenience getters ────────────────────────────────────────────────────
@@ -31,12 +34,44 @@ class AppDataSnapshot {
   Map<String, dynamic> get vehicleStats =>
       Map<String, dynamic>.from(dashboardStats['vehicles'] as Map? ?? {});
 
+  Map<String, dynamic> get locationStats =>
+      Map<String, dynamic>.from(dashboardStats['locations'] as Map? ?? {});
+
   int get activeMissions => (missionStats['active'] as num?)?.toInt() ?? 0;
   int get activeVehicles => (vehicleStats['in_mission'] as num?)?.toInt() ?? 0;
   int get totalVehicles => (vehicleStats['total'] as num?)?.toInt() ?? vehicles.length;
-  int get criticalLowStock => (dashboardStats['critical_low_stock'] as num?)?.toInt() ?? 0;
+  int get idleVehicles => (vehicleStats['idle'] as num?)?.toInt() ?? 0;
+
+  /// API: `inventory.critical_items_low` — seed/demo: `critical_low_stock`.
+  int get criticalLowStock {
+    final inv = dashboardStats['inventory'];
+    if (inv is Map) {
+      return (inv['critical_items_low'] as num?)?.toInt() ?? 0;
+    }
+    return (dashboardStats['critical_low_stock'] as num?)?.toInt() ?? 0;
+  }
+
   int get slaBreached => (missionStats['sla_breached'] as num?)?.toInt() ?? 0;
-  int get meshPending => (dashboardStats['mesh_pending'] as num?)?.toInt() ?? 0;
+
+  /// API: `mesh_messages.pending` — seed/demo: `mesh_pending`.
+  int get meshPending {
+    final mm = dashboardStats['mesh_messages'];
+    if (mm is Map) {
+      return (mm['pending'] as num?)?.toInt() ?? 0;
+    }
+    return (dashboardStats['mesh_pending'] as num?)?.toInt() ?? 0;
+  }
+
+  /// API: `triage_decisions.last_24h` — seed/demo: `triage_24h`.
+  int get triage24h {
+    final td = dashboardStats['triage_decisions'];
+    if (td is Map) {
+      return (td['last_24h'] as num?)?.toInt() ?? 0;
+    }
+    return (dashboardStats['triage_24h'] as num?)?.toInt() ?? 0;
+  }
+
+  int get floodedLocations => (locationStats['flooded'] as num?)?.toInt() ?? 0;
 }
 
 class AppDataNotifier extends StateNotifier<AsyncValue<AppDataSnapshot>> {
@@ -59,6 +94,7 @@ class AppDataNotifier extends StateNotifier<AsyncValue<AppDataSnapshot>> {
         vehicles: results[1] as List<Map<String, dynamic>>,
         networkGraph: results[2] as Map<String, dynamic>,
         missions: results[3] as List<Map<String, dynamic>>,
+        dataRefreshedAt: _service.lastDataRefreshAt,
       ));
     } catch (e, s) {
       state = AsyncValue.error(e, s);

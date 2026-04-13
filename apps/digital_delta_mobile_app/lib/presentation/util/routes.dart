@@ -14,8 +14,15 @@ import '../screen/map/map_screen.dart';
 import '../screen/mesh/mesh_chat_screen.dart';
 import '../screen/mesh/mesh_network_screen.dart';
 import '../screen/mesh/mesh_scan_screen.dart';
+import '../screen/meshcore/meshcore_scanner_screen.dart';
+import '../screen/meshcore/meshcore_contacts_screen.dart';
+import '../screen/meshcore/meshcore_chat_screen.dart';
+import '../screen/meshcore/meshcore_node_graph_screen.dart';
 import '../screen/onboarding/onboarding_screen.dart';
 import '../screen/fleet/drone_dispatch_screen.dart';
+import '../screen/donation/donation_screen.dart';
+import '../screen/nearby/nearby_devices_screen.dart';
+import '../screen/nearby/nearby_chat_screen.dart';
 import '../screen/pod/pod_scanner_screen.dart';
 import '../screen/routing/routing_screen.dart';
 import '../screen/splash/splash_screen.dart';
@@ -39,6 +46,15 @@ class Routes {
   static const String meshNetwork = '/mesh-network';
   static const String meshScan = '/mesh-scan';
   static const String meshChat = '/mesh-chat';
+
+  // ── MeshCore routes (Module 2/3) ───────────────────────────────────────────
+  static const String meshcoreScanner = '/meshcore-scanner';
+  static const String meshcoreContacts = '/meshcore-contacts';
+  static const String meshcoreChat = '/meshcore-chat';
+  static const String meshcoreNodeGraph = '/meshcore-node-graph';
+  static const String donation = '/donation';
+  static const String nearbyDevices = '/nearby-devices';
+  static const String nearbyChat = '/nearby-chat';
   static const String podScanner = '/pod-scanner';
   static const String routing = '/routing';
   static const String droneDispatch = '/drone-dispatch';
@@ -108,6 +124,40 @@ class Routes {
         return MaterialPageRoute(builder: (_) => const DroneDispatchScreen());
       case map:
         return MaterialPageRoute(builder: (_) => const MapScreen());
+
+      // ── MeshCore (Module 2/3) ─────────────────────────────────────────────
+      case meshcoreScanner:
+        return MaterialPageRoute(builder: (_) => const MeshCoreScannerScreen());
+      case meshcoreContacts:
+        return MaterialPageRoute(
+          builder: (_) => const MeshCoreContactsScreen(),
+        );
+      case meshcoreChat:
+        return MaterialPageRoute(
+          builder: (_) => const MeshCoreChatScreen(),
+          settings: settings,
+        );
+      case meshcoreNodeGraph:
+        return MaterialPageRoute(
+          builder: (_) => const MeshCoreNodeGraphScreen(),
+        );
+
+      // ── Nearby Connections ────────────────────────────────────────────────
+      case nearbyDevices:
+        return MaterialPageRoute(builder: (_) => const NearbyDevicesScreen());
+      case nearbyChat:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => NearbyChatScreen(
+            deviceId: args['deviceId'] as String,
+            deviceName: args['deviceName'] as String,
+          ),
+        );
+
+      // ── Donation ──────────────────────────────────────────────────────────
+      case donation:
+        return MaterialPageRoute(builder: (_) => const DonationScreen());
+
       default:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
     }
