@@ -7,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../core/mesh/battery_mesh_throttler.dart';
 import '../../../data/service/nearby_mesh_service.dart';
+import '../../../data/service/sync_mesh_service.dart';
 import '../../../di/cache_module.dart';
 import '../../../domain/model/operations/operations_snapshot_model.dart';
 import '../../theme/color.dart';
@@ -72,6 +73,31 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
     super.dispose();
   }
 
+  // ── Refresh ─────────────────────────────────────────────────────────────────
+  // Stop discovery, clear peer list, restart — shows fresh results.
+  Future<void> _refreshDiscovery() async {
+    if (!mounted) return;
+    setState(() => _isScanning = true);
+    final nearbyService = getIt<NearbyMeshService>();
+    _peersSub?.cancel();
+    await nearbyService.stop();
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    final snapshot = await ref
+        .read(operationsNotifierProvider.notifier)
+        .loadSnapshotDirect();
+    if (!mounted) return;
+    if (snapshot != null) {
+      await nearbyService.start(
+        localNodeUuid: snapshot.summary.localNodeUuid,
+        localDisplayName: snapshot.summary.localNodeName,
+      );
+    }
+    _peersSub = nearbyService.peersStream.listen((_) {
+      if (mounted) ref.read(operationsNotifierProvider.notifier).refresh();
+    });
+    await ref.read(operationsNotifierProvider.notifier).refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final opsState = ref.watch(operationsNotifierProvider);
@@ -92,6 +118,16 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
             ),
           ),
           actions: [
+            // ── Refresh icon: restarts peer discovery ──────────────────────
+            IconButton(
+              icon: Icon(
+                Icons.refresh_rounded,
+                size: 22.sp,
+                color: AppColors.primarySurfaceDefault,
+              ),
+              tooltip: 'Find new nearby devices',
+              onPressed: _refreshDiscovery,
+            ),
             // Scanning indicator
             if (_isScanning)
               Padding(
@@ -339,6 +375,43 @@ class _TopologyTabState extends ConsumerState<_TopologyTab> {
                 child: _NodeTile(node: n),
               ),
             ),
+
+          // ── Saved chat peers (SQLite, offline-reachable) ───────────────
+          // Contacts with prior chat history are always shown so the user
+          // can open a conversation and queue store-and-forward messages
+          // even when those devices are not currently nearby.
+          Builder(
+            builder: (context) {
+              final svc = getIt<SyncMeshService>();
+              final activeUuids = peers.map((n) => n.nodeUuid).toSet();
+              final savedPeers = svc
+                  .getKnownPeers()
+                  .where(
+                    (p) =>
+                        !activeUuids.contains(p.nodeUuid) &&
+                        svc.getChatMessages(p.nodeUuid).isNotEmpty,
+                  )
+                  .toList();
+              if (savedPeers.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 20.h),
+                  _SectionHeader(
+                    title: 'Saved Contacts',
+                    subtitle: '${savedPeers.length} with chat history',
+                  ),
+                  SizedBox(height: 8.h),
+                  ...savedPeers.map(
+                    (n) => Padding(
+                      padding: EdgeInsets.only(bottom: 8.h),
+                      child: _NodeTile(node: n, forceChat: true),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
 
           // ── Relay hop log ──────────────────────────────────────────────
           if (snapshot.relayLogs.isNotEmpty) ...[
@@ -1218,11 +1291,14 @@ class _RoleBadge extends StatelessWidget {
 
 class _NodeTile extends StatelessWidget {
   final MeshNodeEntry node;
-  const _NodeTile({required this.node});
+  // When true, the chat button is always active (for saved offline contacts).
+  final bool forceChat;
+  const _NodeTile({required this.node, this.forceChat = false});
 
   @override
   Widget build(BuildContext context) {
     final isOnline = node.isConnected;
+    final canChat = isOnline || forceChat; // offline peers = store-and-forward
     final isRelay = node.isRelay;
     final signalPct = ((node.signalStrength + 100) / 70).clamp(0.0, 1.0);
     final battColor = node.batteryLevel > 50
@@ -1236,7 +1312,7 @@ class _NodeTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(12.r),
       child: InkWell(
         borderRadius: BorderRadius.circular(12.r),
-        onTap: isOnline
+        onTap: canChat
             ? () => Navigator.pushNamed(
                 context,
                 Routes.meshChat,

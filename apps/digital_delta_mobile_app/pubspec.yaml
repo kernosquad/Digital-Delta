@@ -118,6 +118,13 @@ dependencies:
   nearby_connections: ^4.3.0
   flutter_nearby_connections_plus: ^1.2.2
 
+# Override nearby_connections with a local patched copy that adds
+# setDisruptiveUpgrade(false) + setLowPower(true) to AdvertisingOptions and
+# DiscoveryOptions so the SDK never forces WiFi Direct on — pure BT only.
+dependency_overrides:
+  nearby_connections:
+    path: packages/nearby_connections
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
