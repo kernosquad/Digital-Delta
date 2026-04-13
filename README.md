@@ -8,6 +8,15 @@ Digital Delta is an **offline-first, decentralized logistics coordination system
 
 ---
 
+## Demo Videos
+
+| App                           | Link                                             |
+| ----------------------------- | ------------------------------------------------ |
+| **Backend (API + Dashboard)** | [Watch on YouTube](https://youtu.be/kfEM5rTnC9I) |
+| **Frontend (Mobile App)**     | [Watch on YouTube](https://youtu.be/pUQ85hrX2pc) |
+
+---
+
 ## Repository Structure
 
 ```
