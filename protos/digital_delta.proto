@@ -1,0 +1,493 @@
+// digital_delta.proto
+// Digital Delta — HackFusion 2026
+// Inter-node Protocol Buffer schema (Constraint C1: gRPC + Protobuf MANDATORY)
+//
+// Usage: All node-to-node messages on the mesh network MUST use this schema.
+// REST/JSON is permitted ONLY for the developer dashboard UI (server ↔ browser).
+//
+// Schema versioning: proto3 field numbers are FROZEN. Adding fields is safe.
+// Removing or renumbering fields is a BREAKING CHANGE (forbidden during 24h window, C6).
+//
+// Generated stubs:
+//   Dart (Flutter):  protoc --dart_out=grpc:lib/generated digital_delta.proto
+//   Go (server):     protoc --go_out=. --go-grpc_out=. digital_delta.proto
+
+syntax = "proto3";
+
+package digital_delta.v1;
+
+option java_package = "org.digitalDelta.proto";
+option java_outer_classname = "DigitalDeltaProto";
+option go_package = "github.com/digital-delta/proto/v1";
+
+import "google/protobuf/timestamp.proto";
+
+// ─────────────────────────────────────────────────────────────
+// M1 — Auth & Identity
+// ─────────────────────────────────────────────────────────────
+
+// OTP verification request (M1.1)
+message OtpVerifyRequest {
+  string device_id  = 1;  // Unique device identifier
+  string otp_token  = 2;  // 6-digit TOTP/HOTP code
+  string session_id = 3;  // Local session nonce
+}
+
+message OtpVerifyResponse {
+  bool   valid          = 1;
+  string error_code     = 2;  // "expired" | "invalid" | "" (success)
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+// Key provisioning (M1.2)
+message KeyProvisionRequest {
+  string device_id    = 1;
+  string algorithm    = 2;  // "ed25519" | "rsa2048"
+  bytes  public_key   = 3;  // DER-encoded public key
+}
+
+message KeyProvisionResponse {
+  bool   success      = 1;
+  string key_id       = 2;  // Server-assigned key identifier
+  google.protobuf.Timestamp provisioned_at = 3;
+}
+
+// Auth event for audit log (M1.4)
+message AuthEvent {
+  string event_id     = 1;
+  string device_id    = 2;
+  string event_type   = 3;  // "login" | "otp_failure" | "key_rotation" | "logout"
+  bytes  prev_hash    = 4;  // SHA-256 of previous log entry (hash chaining)
+  bytes  event_hash   = 5;  // SHA-256 of (event_id + device_id + event_type + prev_hash)
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M2 — Offline CRDT Sync
+// ─────────────────────────────────────────────────────────────
+
+// Vector clock: device_id → logical timestamp
+message VectorClock {
+  map<string, uint64> clock = 1;
+}
+
+// A single CRDT operation (append-only log entry)
+message CrdtOperation {
+  string operation_id  = 1;  // UUID
+  string device_id     = 2;  // Source device
+  string entity_type   = 3;  // "inventory" | "mission" | "delivery_receipt" | ...
+  string entity_id     = 4;  // Primary key of the record
+  string field         = 5;  // Which field was mutated
+  bytes  value         = 6;  // Serialized new value (JSON-encoded for flexibility)
+  string operation_type = 7; // "lww_set" | "g_counter_increment" | "set_add" | "set_remove"
+  VectorClock vector_clock = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// Delta-sync push/pull (M2.4 — bandwidth < 10 KB/cycle)
+message SyncPushRequest {
+  string device_id          = 1;
+  VectorClock last_clock    = 2;
+  repeated CrdtOperation operations = 3;
+}
+
+message SyncPullRequest {
+  string device_id          = 1;
+  VectorClock last_clock    = 2;
+}
+
+message SyncPullResponse {
+  repeated CrdtOperation operations = 1;
+  VectorClock server_clock  = 2;
+  repeated SyncConflict conflicts = 3;
+}
+
+// Conflict descriptor (M2.3)
+message SyncConflict {
+  string conflict_id   = 1;
+  string entity_type   = 2;
+  string entity_id     = 3;
+  string field         = 4;
+  CrdtOperation operation_a = 5;  // Device A's version
+  CrdtOperation operation_b = 6;  // Device B's version (concurrent)
+  google.protobuf.Timestamp detected_at = 7;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M3 — Ad-Hoc Mesh Network
+// ─────────────────────────────────────────────────────────────
+
+// A store-and-forward mesh message (M3.1)
+// Relay nodes CANNOT decrypt payload — only recipient's private key can (M3.3)
+message MeshMessage {
+  string message_id          = 1;  // UUID — deduplication
+  string sender_device_id    = 2;
+  string recipient_device_id = 3;
+  bytes  payload_encrypted   = 4;  // AES-256-GCM ciphertext (recipient pubkey encrypted)
+  bytes  sender_signature    = 5;  // Ed25519 signature of (message_id + payload_encrypted hash)
+  bytes  iv                  = 6;  // GCM initialization vector (12 bytes)
+  bytes  auth_tag            = 7;  // GCM authentication tag (16 bytes)
+  uint32 ttl_hours           = 8;  // Time-to-live (default 24h)
+  uint32 hop_count           = 9;  // Incremented by each relay; reject if > 10
+  uint32 max_hops            = 10; // Maximum allowed hops (default 10)
+  string priority            = 11; // "critical" | "high" | "normal" | "low"
+  google.protobuf.Timestamp created_at = 12;
+}
+
+// Relay hop log entry (M3.2)
+message MeshRelayLog {
+  string log_id         = 1;
+  string message_id     = 2;
+  string relay_device_id = 3;
+  uint32 hop_number     = 4;
+  string relay_role     = 5;  // "client" | "relay"
+  google.protobuf.Timestamp relayed_at = 6;
+}
+
+// Relay role announcement (M3.2 — dual-role architecture)
+message RelayRoleAnnouncement {
+  string device_id      = 1;
+  string role           = 2;  // "client" | "relay"
+  float  battery_level  = 3;  // [0.0–1.0]
+  bool   is_stationary  = 4;  // From accelerometer
+  float  signal_strength_dbm = 5;
+  google.protobuf.Timestamp announced_at = 6;
+}
+
+// ACK from recipient to sender (via relay path)
+message MeshDeliveryAck {
+  string message_id     = 1;
+  string recipient_device_id = 2;
+  bytes  recipient_signature = 3; // Signs message_id to prove receipt
+  google.protobuf.Timestamp delivered_at = 4;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M4 — Multi-Modal VRP Routing
+// ─────────────────────────────────────────────────────────────
+
+enum EdgeType {
+  EDGE_TYPE_UNSPECIFIED = 0;
+  ROAD      = 1;
+  WATERWAY  = 2;
+  AIRWAY    = 3;
+}
+
+enum VehicleType {
+  VEHICLE_TYPE_UNSPECIFIED = 0;
+  TRUCK      = 1;
+  SPEEDBOAT  = 2;
+  DRONE      = 3;
+}
+
+// A route edge in the logistics network graph (M4.1)
+message RouteEdge {
+  string edge_id          = 1;
+  string source_node_id   = 2;
+  string target_node_id   = 3;
+  EdgeType edge_type      = 4;
+  float  base_weight_mins = 5;  // Travel time in minutes (no flood)
+  float  current_weight   = 6;  // Adjusted for conditions (9999 = impassable)
+  float  capacity_kg      = 7;
+  bool   is_flooded       = 8;
+  bool   is_blocked       = 9;
+  float  risk_score       = 10; // ML risk [0.0–1.0] from M7
+  google.protobuf.Timestamp last_updated = 11;
+}
+
+// VRP route request (M4.1–M4.3)
+message VrpRequest {
+  string origin_node_id      = 1;
+  string destination_node_id = 2;
+  VehicleType vehicle_type   = 3;
+  float  payload_kg          = 4;
+  bool   avoid_high_risk     = 5;  // If true: skip edges with risk_score > 0.7 (M7)
+}
+
+// VRP route response
+message VrpResponse {
+  repeated string node_path     = 1;  // Ordered list of node_ids
+  repeated RouteEdge edges_used = 2;
+  float  total_weight_mins      = 3;
+  float  total_distance_km      = 4;
+  bool   drone_required         = 5;  // If destination unreachable by ground/water (M8.1)
+  uint32 computed_in_ms         = 6;  // Re-computation latency (must be < 2000ms, M4.2)
+  repeated MlWarning ml_warnings = 7; // High-risk edges on this route (M7.4)
+}
+
+message MlWarning {
+  string route_id     = 1;
+  string risk_level   = 2;  // "low" | "medium" | "high" | "critical"
+  float  probability  = 3;
+}
+
+// Edge condition update (M4.2 — triggers re-computation)
+message EdgeConditionUpdate {
+  string edge_id   = 1;
+  bool   is_flooded = 2;
+  bool   is_blocked = 3;
+  float  new_weight = 4;
+  string updated_by = 5;  // device_id or "chaos_server"
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M5 — Zero-Trust Proof-of-Delivery (PoD)
+// ─────────────────────────────────────────────────────────────
+
+// QR code payload — driver signs this (M5.1)
+message PodQrPayload {
+  string delivery_id      = 1;
+  string mission_id       = 2;
+  string sender_device_id = 3;
+  bytes  sender_public_key = 4;  // Ed25519 pubkey
+  bytes  payload_hash     = 5;   // SHA-256 of cargo manifest
+  string nonce            = 6;   // UUID — single-use (M5.2)
+  bytes  sender_signature = 7;   // Signs fields 1–6 with sender's private key
+  google.protobuf.Timestamp issued_at = 8;
+}
+
+// Recipient counter-signature (M5.1 — mutual verification)
+message PodVerifyRequest {
+  PodQrPayload qr_payload       = 1;
+  string recipient_device_id    = 2;
+  bytes  recipient_signature    = 3;  // Signs hash(qr_payload) with recipient's private key
+}
+
+message PodVerifyResponse {
+  bool   verified      = 1;
+  string receipt_id    = 2;
+  string error_code    = 3;  // "" | "invalid_signature" | "nonce_already_used" | "expired"
+  google.protobuf.Timestamp verified_at = 4;
+}
+
+// Delivery receipt (appended to CRDT ledger, M5.3)
+message DeliveryReceipt {
+  string receipt_id         = 1;
+  string delivery_id        = 2;
+  string mission_id         = 3;
+  string sender_device_id   = 4;
+  string recipient_device_id = 5;
+  bytes  sender_signature   = 6;
+  bytes  recipient_signature = 7;
+  string nonce              = 8;
+  string crdt_operation_id  = 9;  // Links to CRDT ledger (M5.3)
+  google.protobuf.Timestamp completed_at = 10;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M6 — Autonomous Triage & Priority Preemption
+// ─────────────────────────────────────────────────────────────
+
+enum PriorityClass {
+  PRIORITY_UNSPECIFIED = 0;
+  P0_CRITICAL = 1;  // SLA: 2 hours
+  P1_HIGH     = 2;  // SLA: 6 hours
+  P2_STANDARD = 3;  // SLA: 24 hours
+  P3_LOW      = 4;  // SLA: 72 hours
+}
+
+// SLA breach prediction result (M6.2)
+message SlaBreach {
+  string mission_id       = 1;
+  PriorityClass priority  = 2;
+  float  current_eta_mins = 3;
+  float  sla_deadline_mins = 4;
+  bool   breach_predicted = 5;
+  float  delay_factor     = 6;  // ETA / SLA — ratio > 1 means breach
+  string recommended_action = 7;  // "preempt" | "reroute" | "monitor"
+}
+
+// Autonomous triage decision (M6.3 — drop-and-reroute)
+message TriageDecision {
+  string decision_id      = 1;
+  string mission_id       = 2;
+  string action           = 3;  // "drop_cargo" | "reroute" | "preempt_lower_priority"
+  string rationale        = 4;  // Human-readable explanation
+  repeated string dropped_cargo_ids = 5;
+  string safe_waypoint_node_id = 6;  // Where P2/P3 cargo dropped
+  string new_route_node_id = 7;      // Rerouted destination
+  google.protobuf.Timestamp decided_at = 8;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M7 — Predictive Route Decay (ML)
+// ─────────────────────────────────────────────────────────────
+
+// Environmental sensor reading (M7.1)
+message SensorReading {
+  string reading_id   = 1;
+  string route_id     = 2;
+  string sensor_type  = 3;  // "rainfall" | "water_level" | "wind" | "soil_saturation" | "temperature"
+  float  value        = 4;
+  string unit         = 5;  // "mm_per_hour" | "meters" | "kmh" | "index" | "celsius"
+  string device_id    = 6;  // Reporting device
+  google.protobuf.Timestamp recorded_at = 7;
+}
+
+// ML impassability prediction (M7.2)
+message RouteMLPrediction {
+  string prediction_id      = 1;
+  string route_id           = 2;
+  bool   impassable_within_2h = 3;
+  float  probability        = 4;  // [0.0–1.0]
+  string risk_level         = 5;  // "low" | "medium" | "high" | "critical"
+  string model_version      = 6;
+  // Feature snapshot for explainability (M7.4)
+  float  cumulative_rainfall_mm = 7;
+  float  rate_of_change     = 8;
+  float  soil_saturation    = 9;
+  float  water_level_m      = 10;
+  float  water_level_delta  = 11;
+  float  elevation_m        = 12;
+  google.protobuf.Timestamp predicted_at = 13;
+}
+
+// ─────────────────────────────────────────────────────────────
+// M8 — Hybrid Fleet & Drone Handoff
+// ─────────────────────────────────────────────────────────────
+
+// Rendezvous computation request (M8.2)
+message RendezvousRequest {
+  string boat_id             = 1;
+  string drone_id            = 2;
+  string destination_node_id = 3;  // Final delivery point
+  float  payload_kg          = 4;
+  double boat_lat            = 5;
+  double boat_lng            = 6;
+  double drone_base_lat      = 7;
+  double drone_base_lng      = 8;
+  float  drone_range_km      = 9;
+}
+
+message RendezvousPoint {
+  double lat             = 1;
+  double lng             = 2;
+  string nearest_node_id = 3;
+  float  boat_eta_mins   = 4;
+  float  drone_eta_mins  = 5;
+  float  total_time_mins = 6;  // max(boat_eta, drone_eta) + drone_to_dest
+}
+
+message RendezvousResponse {
+  RendezvousPoint rendezvous = 1;
+  bool   feasible            = 2;  // False if drone range insufficient
+  string infeasibility_reason = 3;
+}
+
+// Handoff event (M8.3 — boat arrives, drone acknowledges)
+message HandoffEvent {
+  string handoff_id        = 1;
+  string mission_id        = 2;
+  string boat_id           = 3;
+  string drone_id          = 4;
+  string rendezvous_node_id = 5;
+  string pod_receipt_id    = 6;  // From M5 (M8.3)
+  string crdt_operation_id = 7;  // Ownership transfer in ledger
+  string status            = 8;  // "boat_departed" | "drone_received" | "completed"
+  google.protobuf.Timestamp occurred_at = 9;
+}
+
+// Battery-aware throttling state (M8.4)
+message BatteryThrottleState {
+  string device_id            = 1;
+  float  battery_level        = 2;  // [0.0–1.0]
+  bool   is_stationary        = 3;
+  float  broadcast_interval_s = 4;  // Current mesh broadcast interval in seconds
+  string throttle_reason      = 5;  // "battery_low" | "stationary" | "proximity_boost" | "normal"
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// ─────────────────────────────────────────────────────────────
+// gRPC Service Definitions
+// ─────────────────────────────────────────────────────────────
+
+// Mesh node service — implemented on each mobile device
+service MeshNodeService {
+  // M3.1 — Store-and-forward relay
+  rpc SendMessage(MeshMessage) returns (MeshDeliveryAck);
+  rpc FetchMessages(FetchMessagesRequest) returns (stream MeshMessage);
+
+  // M3.2 — Relay role negotiation
+  rpc AnnounceRole(RelayRoleAnnouncement) returns (RoleAckResponse);
+
+  // M2.4 — Peer-to-peer delta sync (when server unreachable)
+  rpc PushCrdtOps(SyncPushRequest) returns (SyncPullResponse);
+  rpc PullCrdtOps(SyncPullRequest) returns (SyncPullResponse);
+
+  // M1.1 — OTP verification (offline)
+  rpc VerifyOtp(OtpVerifyRequest) returns (OtpVerifyResponse);
+
+  // M4 — Share updated edge conditions
+  rpc UpdateEdgeCondition(EdgeConditionUpdate) returns (EdgeUpdateAck);
+
+  // M7 — Share sensor readings with peers
+  rpc ShareSensorReading(SensorReading) returns (SensorAck);
+
+  // M8.4 — Broadcast battery/throttle state
+  rpc AnnounceThrottleState(BatteryThrottleState) returns (ThrottleAck);
+}
+
+// Sync server service — implemented on backend (AdonisJS wraps this)
+service SyncServerService {
+  // M2 — Full CRDT sync
+  rpc Push(SyncPushRequest) returns (SyncPullResponse);
+  rpc Pull(SyncPullRequest) returns (SyncPullResponse);
+
+  // M1.2 — Key provisioning
+  rpc ProvisionKey(KeyProvisionRequest) returns (KeyProvisionResponse);
+
+  // M4 — VRP computation (server has full graph)
+  rpc ComputeRoute(VrpRequest) returns (VrpResponse);
+
+  // M5 — PoD verification
+  rpc VerifyDelivery(PodVerifyRequest) returns (PodVerifyResponse);
+
+  // M6 — Triage evaluation
+  rpc EvaluateTriage(TriageEvaluateRequest) returns (TriageDecision);
+
+  // M7 — ML prediction
+  rpc GetRoutePrediction(RoutePredictionRequest) returns (RouteMLPrediction);
+
+  // M8 — Rendezvous computation
+  rpc ComputeRendezvous(RendezvousRequest) returns (RendezvousResponse);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Auxiliary Request/Response types
+// ─────────────────────────────────────────────────────────────
+
+message FetchMessagesRequest {
+  string device_id  = 1;
+  bool   fetch_pending = 2;
+}
+
+message RoleAckResponse {
+  bool   accepted   = 1;
+  string assigned_role = 2;
+}
+
+message EdgeUpdateAck {
+  bool   accepted   = 1;
+  repeated VrpResponse affected_routes = 2;  // Re-computed routes after update
+}
+
+message SensorAck {
+  bool   stored = 1;
+  string reading_id = 2;
+}
+
+message ThrottleAck {
+  bool   acknowledged = 1;
+}
+
+message TriageEvaluateRequest {
+  string mission_id = 1;
+  float  current_eta_mins = 2;
+  float  route_delay_factor = 3;
+}
+
+message RoutePredictionRequest {
+  string route_id = 1;
+  repeated SensorReading recent_readings = 2;
+}
