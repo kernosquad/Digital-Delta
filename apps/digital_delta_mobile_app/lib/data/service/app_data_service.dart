@@ -45,6 +45,19 @@ class AppDataService {
     );
   }
 
+  static const _lastRefreshKey = '${_keyPrefix}last_data_refresh_ms';
+
+  void _touchLastDataRefresh() {
+    _prefs.setInt(_lastRefreshKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// Last time any REST endpoint successfully wrote fresh data to the local cache.
+  DateTime? get lastDataRefreshAt {
+    final ms = _prefs.getInt(_lastRefreshKey);
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
   dynamic _read(String key, {bool stale = false}) {
     final raw = _prefs.getString('$_keyPrefix$key');
     if (raw == null) return null;
@@ -75,6 +88,7 @@ class AppDataService {
         final data = res.data['data'];
         if (data != null) {
           _put(cacheKey, data);
+          _touchLastDataRefresh();
           return parse(data);
         }
       } on DioException catch (_) {

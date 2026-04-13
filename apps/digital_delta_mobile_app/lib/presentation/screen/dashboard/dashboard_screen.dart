@@ -7,6 +7,22 @@ import '../../connectivity/notifier/provider.dart';
 import '../../theme/color.dart';
 import 'notifier/operations_notifier.dart';
 import 'notifier/provider.dart';
+import 'notifier/sync_hub_notifier.dart';
+
+Future<void> _syncDashboardPull(WidgetRef ref) async {
+  final online = ref.read(connectivityNotifierProvider).maybeWhen(
+        online: (_) => true,
+        orElse: () => false,
+      );
+  if (online) {
+    await ref.read(syncHubProvider.notifier).syncAllWithBackend(
+          ref.read(operationsNotifierProvider.notifier),
+        );
+  } else {
+    await ref.read(operationsNotifierProvider.notifier).refresh();
+    await ref.read(syncHubProvider.notifier).refreshMetadataOnly();
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module 2 — Offline-First Distributed Database & CRDT Sync
@@ -21,13 +37,13 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final opsState   = ref.watch(operationsNotifierProvider);
+    final opsState = ref.watch(operationsNotifierProvider);
     final connectivity = ref.watch(connectivityNotifierProvider);
 
     final syncInfo = connectivity.when(
-      initial: () => ('Initializing', Colors.grey,  Icons.hourglass_empty),
-      online:  (_) => ('Online',       Colors.green, Icons.cloud_done),
-      offline: ()  => ('Offline',      Colors.orange, Icons.cloud_off),
+      initial: () => ('Initializing', Colors.grey, Icons.hourglass_empty),
+      online: (_) => ('Online', Colors.green, Icons.cloud_done),
+      offline: () => ('Offline', Colors.orange, Icons.cloud_off),
     );
 
     return DefaultTabController(
@@ -38,6 +54,11 @@ class DashboardScreen extends ConsumerWidget {
           title: Text('Supply & Delivery Status',
               style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700)),
           actions: [
+            IconButton(
+              tooltip: 'Sync with server',
+              onPressed: () => _syncDashboardPull(ref),
+              icon: Icon(Icons.sync, size: 22.sp),
+            ),
             _SyncBadge(label: syncInfo.$1, color: syncInfo.$2, icon: syncInfo.$3),
             SizedBox(width: 12.w),
           ],
@@ -51,9 +72,130 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         body: opsState.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error:   (msg) => _ErrorView(msg: msg),
-          loaded:  (snap) => _DashboardTabs(snapshot: snap),
+          loading: () => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SyncHubStrip(),
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ],
+          ),
+          error: (msg) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SyncHubStrip(),
+              Expanded(child: _ErrorView(msg: msg)),
+            ],
+          ),
+          loaded: (snap) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SyncHubStrip(),
+              Expanded(child: _DashboardTabs(snapshot: snap)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SyncHubStrip extends ConsumerWidget {
+  const _SyncHubStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hub = ref.watch(syncHubProvider);
+    final online = ref.watch(connectivityNotifierProvider).maybeWhen(
+          online: (_) => true,
+          orElse: () => false,
+        );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 4.h),
+      child: hub.when(
+        loading: () => ClipRRect(
+          borderRadius: BorderRadius.circular(8.r),
+          child: const LinearProgressIndicator(minHeight: 3),
+        ),
+        error: (e, _) => Container(
+          padding: EdgeInsets.all(10.w),
+          decoration: BoxDecoration(
+            color: AppColors.dangerSurfaceTint,
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: AppColors.dangerSurfaceDefault.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Text(
+            'Server sync info unavailable: $e',
+            style: TextStyle(fontSize: 11.sp, color: AppColors.primaryTextDefault),
+          ),
+        ),
+        data: (snap) => Material(
+          elevation: 0,
+          borderRadius: BorderRadius.circular(12.r),
+          color: online
+              ? AppColors.primarySurfaceTint
+              : AppColors.warningSurfaceDefault.withValues(alpha: 0.1),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                      size: 18.sp,
+                      color: online
+                          ? AppColors.statusOnline
+                          : AppColors.statusPending,
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Text(
+                        snap.offline
+                            ? 'Offline — local CRDT ledger; reconnect for /api/sync push & pull'
+                            : 'Online — REST sync (/api/sync) + CRDT when you pull to refresh',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryTextDefault,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (!snap.offline) ...[
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Server mesh nodes: ${snap.meshNodes.length} · Server open conflicts: ${snap.openConflicts.length}',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AppColors.secondaryTextDefault,
+                    ),
+                  ),
+                ],
+                if (snap.notes.isNotEmpty) ...[
+                  SizedBox(height: 6.h),
+                  ...snap.notes.map(
+                    (n) => Padding(
+                      padding: EdgeInsets.only(top: 3.h),
+                      child: Text(
+                        n,
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          color: AppColors.statusPending,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -83,17 +225,18 @@ class _DashboardTabs extends ConsumerWidget {
 // TAB 1 — Inventory Ledger (M2.1)
 // ═════════════════════════════════════════════════════════════════════════════
 
-class _InventoryTab extends StatelessWidget {
+class _InventoryTab extends ConsumerWidget {
   final OperationsSnapshot snapshot;
   final OperationsNotifier notifier;
   const _InventoryTab({required this.snapshot, required this.notifier});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final summary = snapshot.summary;
     return RefreshIndicator(
-      onRefresh: notifier.refresh,
+      onRefresh: () => _syncDashboardPull(ref),
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 120.h),
         children: [
           // ── Quick stats ────────────────────────────────────────────────
@@ -238,19 +381,22 @@ class _InventoryTab extends StatelessWidget {
 // TAB 2 — Vector Clocks (M2.2)
 // ═════════════════════════════════════════════════════════════════════════════
 
-class _ClocksTab extends StatelessWidget {
+class _ClocksTab extends ConsumerWidget {
   final OperationsSnapshot snapshot;
   const _ClocksTab({required this.snapshot});
 
   @override
-  Widget build(BuildContext context) {
-    final vc      = snapshot.summary.vectorClock;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vc = snapshot.summary.vectorClock;
     final localId = snapshot.summary.localNodeUuid;
-    final ops     = snapshot.operations;
+    final ops = snapshot.operations;
 
-    return ListView(
-      padding: EdgeInsets.all(16.w),
-      children: [
+    return RefreshIndicator(
+      onRefresh: () => _syncDashboardPull(ref),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(16.w),
+        children: [
         // ── What are vector clocks? ────────────────────────────────────
         _InfoCard(
           icon: Icons.account_tree_outlined,
@@ -354,6 +500,7 @@ class _ClocksTab extends StatelessWidget {
             );
           }),
       ],
+      ),
     );
   }
 }
@@ -372,9 +519,12 @@ class _ConflictsTab extends ConsumerWidget {
     final open    = snapshot.conflicts.where((c) => c.resolution == null).toList();
     final resolved = snapshot.conflicts.where((c) => c.resolution != null).toList();
 
-    return ListView(
-      padding: EdgeInsets.all(16.w),
-      children: [
+    return RefreshIndicator(
+      onRefresh: () => _syncDashboardPull(ref),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(16.w),
+        children: [
         _InfoCard(
           icon: Icons.merge_type,
           color: Colors.red,
@@ -416,6 +566,7 @@ class _ConflictsTab extends ConsumerWidget {
           )),
         ],
       ],
+      ),
     );
   }
 }

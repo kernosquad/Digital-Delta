@@ -44,8 +44,9 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
     if (nearbyService.isRunning) return;
 
     // Load the local node identity from the already-bootstrapped SyncMeshService.
-    final snapshot =
-        await ref.read(operationsNotifierProvider.notifier).loadSnapshotDirect();
+    final snapshot = await ref
+        .read(operationsNotifierProvider.notifier)
+        .loadSnapshotDirect();
     if (snapshot == null || !mounted) return;
 
     setState(() => _isScanning = true);
@@ -78,12 +79,18 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D1B2A),
+        backgroundColor: AppColors.colorBackground,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF0D1B2A),
-          foregroundColor: Colors.white,
-          title: Text('Nearby Device Network',
-              style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.primaryTextDefault,
+          title: Text(
+            'Nearby Device Network',
+            style: TextStyle(
+              fontSize: 17.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryTextDefault,
+            ),
+          ),
           actions: [
             // Scanning indicator
             if (_isScanning)
@@ -96,13 +103,17 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
                     height: 18.w,
                     child: const CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.tealAccent,
+                      color: AppColors.primarySurfaceDefault,
                     ),
                   ),
                 ),
               ),
             IconButton(
-              icon: Icon(Icons.chat_bubble_outline, size: 22.sp, color: Colors.white70),
+              icon: Icon(
+                Icons.chat_bubble_outline,
+                size: 22.sp,
+                color: AppColors.secondaryTextDefault,
+              ),
               tooltip: 'Open chat with first connected peer',
               onPressed: () {
                 final nearbyService = getIt<NearbyMeshService>();
@@ -112,23 +123,29 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
                 if (connectedPeers.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('No connected peers yet — wait for a nearby device to appear.'),
+                      content: Text(
+                        'No connected peers yet — wait for a nearby device to appear.',
+                      ),
                     ),
                   );
                   return;
                 }
                 final peer = connectedPeers.first;
-                Navigator.pushNamed(context, Routes.meshChat, arguments: {
-                  'peerNodeUuid': peer.nodeUuid,
-                  'peerName':     peer.displayName,
-                });
+                Navigator.pushNamed(
+                  context,
+                  Routes.meshChat,
+                  arguments: {
+                    'peerNodeUuid': peer.nodeUuid,
+                    'peerName': peer.displayName,
+                  },
+                );
               },
             ),
           ],
           bottom: TabBar(
             indicatorColor: AppColors.primarySurfaceDefault,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white38,
+            labelColor: AppColors.primaryTextDefault,
+            unselectedLabelColor: AppColors.secondaryTextDefault,
             labelStyle: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
             tabs: const [
               Tab(text: 'Devices'),
@@ -138,9 +155,18 @@ class _MeshScanScreenState extends ConsumerState<MeshScanScreen> {
           ),
         ),
         body: opsState.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-          error:   (msg) => Center(child: Text(msg, style: const TextStyle(color: Colors.red))),
-          loaded:  (snap) => _MeshTabs(snapshot: snap),
+          loading: () => const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primarySurfaceDefault,
+            ),
+          ),
+          error: (msg) => Center(
+            child: Text(
+              msg,
+              style: const TextStyle(color: AppColors.dangerSurfaceDefault),
+            ),
+          ),
+          loaded: (snap) => _MeshTabs(snapshot: snap),
         ),
       ),
     );
@@ -170,72 +196,170 @@ class _MeshTabs extends ConsumerWidget {
 // TAB 1 — Mesh Topology (M3.2 dual-role)
 // ═════════════════════════════════════════════════════════════════════════════
 
-class _TopologyTab extends StatelessWidget {
+class _TopologyTab extends ConsumerStatefulWidget {
   final OperationsSnapshot snapshot;
   final OperationsNotifier notifier;
   const _TopologyTab({required this.snapshot, required this.notifier});
 
   @override
+  ConsumerState<_TopologyTab> createState() => _TopologyTabState();
+}
+
+class _TopologyTabState extends ConsumerState<_TopologyTab> {
+  OperationsSnapshot get snapshot => widget.snapshot;
+  OperationsNotifier get notifier => widget.notifier;
+
+  // Pull-to-refresh: stop + clear peers, restart discovery, reload snapshot.
+  Future<void> _onRefresh() async {
+    final nearbyService = getIt<NearbyMeshService>();
+    // Stop clears the peer list and marks all nodes disconnected in the DB.
+    await nearbyService.stop();
+    // Brief gap so the OS releases the Nearby Connections session cleanly.
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    // Restart discovery using the local identity already stored in the DB.
+    final snap = await ref
+        .read(operationsNotifierProvider.notifier)
+        .loadSnapshotDirect();
+    if (snap != null) {
+      await nearbyService.start(
+        localNodeUuid: snap.summary.localNodeUuid,
+        localDisplayName: snap.summary.localNodeName,
+      );
+    }
+    // Refresh Riverpod state so the list reflects the cleared + re-discovered peers.
+    await ref.read(operationsNotifierProvider.notifier).refresh();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final nodes      = snapshot.nodes;
-    final summary    = snapshot.summary;
-    final localNode  = summary.localNodeUuid;
-    final peers      = nodes.where((n) => n.nodeUuid != localNode).toList();
+    final nodes = snapshot.nodes;
+    final summary = snapshot.summary;
+    final localNode = summary.localNodeUuid;
+    final peers = nodes.where((n) => n.nodeUuid != localNode).toList();
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 120.h),
-      children: [
-        // ── M8.4 Battery Throttle Panel ───────────────────────────────
-        const _BatteryThrottlePanel(),
-        SizedBox(height: 14.h),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: AppColors.primarySurfaceDefault,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 120.h),
+        children: [
+          // Pull-to-refresh hint
+          Center(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 6.h),
+              child: Text(
+                'Pull down to rediscover nearby devices',
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ),
+          ),
+          // ── M8.4 Battery Throttle Panel ───────────────────────────────
+          const _BatteryThrottlePanel(),
+          SizedBox(height: 14.h),
 
-        // ── Quick stats ────────────────────────────────────────────────
-        Row(children: [
-          _MeshStat(icon: Icons.hub_outlined,    value: '${peers.length}',          label: 'Devices',   color: AppColors.primarySurfaceDefault),
-          SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.cell_tower,      value: '${summary.relayCapableNodes}', label: 'Helpers',  color: AppColors.nodeDroneBase),
-          SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.mail_outline,    value: '${summary.queuedMessages}', label: 'Queued',  color: AppColors.dangerSurfaceLight),
-          SizedBox(width: 8.w),
-          _MeshStat(icon: Icons.warning_amber_outlined, value: '${summary.openConflicts}',  label: 'Conflicts', color: AppColors.statusPending),
-        ]),
-        SizedBox(height: 14.h),
+          // ── Quick stats ────────────────────────────────────────────────
+          Row(
+            children: [
+              _MeshStat(
+                icon: Icons.hub_outlined,
+                value: '${peers.length}',
+                label: 'Devices',
+                color: AppColors.primarySurfaceDefault,
+              ),
+              SizedBox(width: 8.w),
+              _MeshStat(
+                icon: Icons.cell_tower,
+                value: '${summary.relayCapableNodes}',
+                label: 'Helpers',
+                color: AppColors.nodeDroneBase,
+              ),
+              SizedBox(width: 8.w),
+              _MeshStat(
+                icon: Icons.mail_outline,
+                value: '${summary.queuedMessages}',
+                label: 'Queued',
+                color: AppColors.dangerSurfaceLight,
+              ),
+              SizedBox(width: 8.w),
+              _MeshStat(
+                icon: Icons.warning_amber_outlined,
+                value: '${summary.openConflicts}',
+                label: 'Conflicts',
+                color: AppColors.statusPending,
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
 
-        // ── Action row ─────────────────────────────────────────────────
-        _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.send_outlined,   label: 'Queue Msg',  color: AppColors.priorityP2,      onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,         label: 'Forward',    color: AppColors.nodeDroneBase,   onTap: notifier.relayNextMessage),
-          _DemoBtn(icon: Icons.sync,            label: 'Refresh',    color: AppColors.statusIdle,      onTap: notifier.refresh),
-        ]),
-        SizedBox(height: 16.h),
-
-        // ── Local node identity ────────────────────────────────────────
-        _LocalNodeCard(summary: summary),
-        SizedBox(height: 12.h),
-
-        // ── Remote peers ───────────────────────────────────────────────
-        _SectionHeader(title: 'Nearby Devices', subtitle: '${peers.length} found'),
-        SizedBox(height: 8.h),
-        if (peers.isEmpty)
-          const _EmptyMesh()
-        else
-          ...peers.map((n) => Padding(
-            padding: EdgeInsets.only(bottom: 8.h),
-            child: _NodeTile(node: n),
-          )),
-
-        // ── Relay hop log ──────────────────────────────────────────────
-        if (snapshot.relayLogs.isNotEmpty) ...[
+          // ── Action row ─────────────────────────────────────────────────
+          _DemoActionRow(
+            children: [
+              _DemoBtn(
+                icon: Icons.send_outlined,
+                label: 'Queue Msg',
+                color: AppColors.priorityP2,
+                onTap: notifier.queueDemoMessage,
+              ),
+              _DemoBtn(
+                icon: Icons.forward,
+                label: 'Forward',
+                color: AppColors.nodeDroneBase,
+                onTap: notifier.relayNextMessage,
+              ),
+              _DemoBtn(
+                icon: Icons.sync,
+                label: 'Refresh',
+                color: AppColors.statusIdle,
+                onTap: notifier.refresh,
+              ),
+            ],
+          ),
           SizedBox(height: 16.h),
-          _SectionHeader(title: 'Relay Hop Log', subtitle: '${snapshot.relayLogs.length} hops'),
+
+          // ── Local node identity ────────────────────────────────────────
+          _LocalNodeCard(summary: summary),
+          SizedBox(height: 12.h),
+
+          // ── Remote peers ───────────────────────────────────────────────
+          _SectionHeader(
+            title: 'Nearby Devices',
+            subtitle: '${peers.length} found',
+          ),
           SizedBox(height: 8.h),
-          ...snapshot.relayLogs.take(6).map((log) => Padding(
-            padding: EdgeInsets.only(bottom: 6.h),
-            child: _HopTile(log: log, snapshot: snapshot),
-          )),
+          if (peers.isEmpty)
+            const _EmptyMesh()
+          else
+            ...peers.map(
+              (n) => Padding(
+                padding: EdgeInsets.only(bottom: 8.h),
+                child: _NodeTile(node: n),
+              ),
+            ),
+
+          // ── Relay hop log ──────────────────────────────────────────────
+          if (snapshot.relayLogs.isNotEmpty) ...[
+            SizedBox(height: 16.h),
+            _SectionHeader(
+              title: 'Relay Hop Log',
+              subtitle: '${snapshot.relayLogs.length} hops',
+            ),
+            SizedBox(height: 8.h),
+            ...snapshot.relayLogs
+                .take(6)
+                .map(
+                  (log) => Padding(
+                    padding: EdgeInsets.only(bottom: 6.h),
+                    child: _HopTile(log: log, snapshot: snapshot),
+                  ),
+                ),
+          ],
         ],
-      ],
-    );
+      ), // ListView
+    ); // RefreshIndicator
   }
 }
 
@@ -250,8 +374,8 @@ class _RelayQueueTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final msgs     = snapshot.messages;
-    final pending  = msgs.where((m) => !m.isDelivered).toList();
+    final msgs = snapshot.messages;
+    final pending = msgs.where((m) => !m.isDelivered).toList();
     final delivered = msgs.where((m) => m.isDelivered).toList();
 
     return ListView(
@@ -262,38 +386,68 @@ class _RelayQueueTab extends StatelessWidget {
           icon: Icons.swap_horiz,
           color: AppColors.priorityP2,
           title: 'Save & Forward Messages',
-          body: 'Messages are saved and delivered even if some devices go offline along the way. '
+          body:
+              'Messages are saved and delivered even if some devices go offline along the way. '
               'Each message stays active for 24 hours and is forwarded across up to 10 devices. Tap "Send Msg" then "Forward" to try it.',
         ),
         SizedBox(height: 14.h),
 
         // Action row
-        _DemoActionRow(children: [
-          _DemoBtn(icon: Icons.send_outlined,  label: 'Send Msg',   color: AppColors.priorityP2,    onTap: notifier.queueDemoMessage),
-          _DemoBtn(icon: Icons.forward,        label: 'Forward',    color: AppColors.nodeDroneBase, onTap: notifier.relayNextMessage),
-          _DemoBtn(icon: Icons.sync,           label: 'Refresh',    color: Colors.grey,       onTap: notifier.refresh),
-        ]),
+        _DemoActionRow(
+          children: [
+            _DemoBtn(
+              icon: Icons.send_outlined,
+              label: 'Send Msg',
+              color: AppColors.priorityP2,
+              onTap: notifier.queueDemoMessage,
+            ),
+            _DemoBtn(
+              icon: Icons.forward,
+              label: 'Forward',
+              color: AppColors.nodeDroneBase,
+              onTap: notifier.relayNextMessage,
+            ),
+            _DemoBtn(
+              icon: Icons.sync,
+              label: 'Refresh',
+              color: Colors.grey,
+              onTap: notifier.refresh,
+            ),
+          ],
+        ),
         SizedBox(height: 16.h),
 
         // Pending messages
-        _SectionHeader(title: 'Waiting to Send', subtitle: '${pending.length} messages'),
+        _SectionHeader(
+          title: 'Waiting to Send',
+          subtitle: '${pending.length} messages',
+        ),
         SizedBox(height: 8.h),
         if (pending.isEmpty)
           _EmptyQueueCard()
         else
-          ...pending.map((m) => Padding(
-            padding: EdgeInsets.only(bottom: 8.h),
-            child: _MessageTile(msg: m, snapshot: snapshot),
-          )),
+          ...pending.map(
+            (m) => Padding(
+              padding: EdgeInsets.only(bottom: 8.h),
+              child: _MessageTile(msg: m, snapshot: snapshot),
+            ),
+          ),
 
         if (delivered.isNotEmpty) ...[
           SizedBox(height: 16.h),
-          _SectionHeader(title: 'Delivered', subtitle: '${delivered.length} messages'),
+          _SectionHeader(
+            title: 'Delivered',
+            subtitle: '${delivered.length} messages',
+          ),
           SizedBox(height: 8.h),
-          ...delivered.take(4).map((m) => Padding(
-            padding: EdgeInsets.only(bottom: 6.h),
-            child: _MessageTile(msg: m, snapshot: snapshot),
-          )),
+          ...delivered
+              .take(4)
+              .map(
+                (m) => Padding(
+                  padding: EdgeInsets.only(bottom: 6.h),
+                  child: _MessageTile(msg: m, snapshot: snapshot),
+                ),
+              ),
         ],
       ],
     );
@@ -320,39 +474,61 @@ class _EncryptionTab extends StatelessWidget {
           icon: Icons.lock_outlined,
           color: AppColors.primarySurfaceDefault,
           title: 'Private Messaging',
-          body: 'All messages are scrambled so only the intended recipient can read them. '
+          body:
+              'All messages are scrambled so only the intended recipient can read them. '
               'Other devices that pass the message along cannot see its contents. '
               'Only the person you are sending to can unlock and read the message.',
         ),
         SizedBox(height: 14.h),
 
         // Encryption proof: node key table
-        _SectionHeader(title: 'Device Security Keys', subtitle: '${snapshot.nodes.length} devices'),
+        _SectionHeader(
+          title: 'Device Security Keys',
+          subtitle: '${snapshot.nodes.length} devices',
+        ),
         SizedBox(height: 8.h),
         if (snapshot.nodes.isEmpty)
-          _InfoCard(icon: Icons.key_off, color: AppColors.statusIdle,
-              title: 'No devices yet',
-              body: 'Add demo devices to see their security keys here')
+          _InfoCard(
+            icon: Icons.key_off,
+            color: AppColors.statusIdle,
+            title: 'No devices yet',
+            body: 'Add demo devices to see their security keys here',
+          )
         else
-          ...snapshot.nodes.map((n) => Padding(
-            padding: EdgeInsets.only(bottom: 6.h),
-            child: _KeyCard(node: n, isLocal: n.nodeUuid == snapshot.summary.localNodeUuid),
-          )),
+          ...snapshot.nodes.map(
+            (n) => Padding(
+              padding: EdgeInsets.only(bottom: 6.h),
+              child: _KeyCard(
+                node: n,
+                isLocal: n.nodeUuid == snapshot.summary.localNodeUuid,
+              ),
+            ),
+          ),
 
         SizedBox(height: 16.h),
 
         // Encrypted payload inspector
-        _SectionHeader(title: 'Message Details', subtitle: '${msgs.length} messages'),
+        _SectionHeader(
+          title: 'Message Details',
+          subtitle: '${msgs.length} messages',
+        ),
         SizedBox(height: 8.h),
         if (msgs.isEmpty)
-          _InfoCard(icon: Icons.mail_lock_outlined, color: AppColors.statusIdle,
-              title: 'No messages yet',
-              body: 'Send a message to see its details here')
+          _InfoCard(
+            icon: Icons.mail_lock_outlined,
+            color: AppColors.statusIdle,
+            title: 'No messages yet',
+            body: 'Send a message to see its details here',
+          )
         else
-          ...msgs.take(4).map((m) => Padding(
-            padding: EdgeInsets.only(bottom: 8.h),
-            child: _PayloadInspector(msg: m, snapshot: snapshot),
-          )),
+          ...msgs
+              .take(4)
+              .map(
+                (m) => Padding(
+                  padding: EdgeInsets.only(bottom: 8.h),
+                  child: _PayloadInspector(msg: m, snapshot: snapshot),
+                ),
+              ),
 
         SizedBox(height: 16.h),
 
@@ -360,30 +536,63 @@ class _EncryptionTab extends StatelessWidget {
         Container(
           padding: EdgeInsets.all(14.w),
           decoration: BoxDecoration(
-            color: const Color(0xFF0D1B2A),
+            color: AppColors.primarySurfaceTint,
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: AppColors.primarySurfaceDefault.withValues(alpha: 0.3),
+            ),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Security Standards',
-                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
-            SizedBox(height: 8.h),
-            ...[
-              ('Key Algorithm', 'Ed25519 (256-bit)'),
-              ('Payload Encryption', 'AES-256-GCM (via Ed25519 KEM)'),
-              ('Hash Function', 'SHA-256'),
-              ('Banned', 'MD5, SHA-1, DES — never used'),
-              ('Transport', 'TLS 1.3 for server channels'),
-            ].map((e) => Padding(
-              padding: EdgeInsets.only(bottom: 4.h),
-              child: Row(children: [
-                Icon(Icons.check_circle, size: 12.sp, color: AppColors.primarySurfaceDefault),
-                SizedBox(width: 6.w),
-                Text('${e.$1}: ', style: TextStyle(fontSize: 11.sp, color: Colors.white54)),
-                Expanded(child: Text(e.$2, style: TextStyle(fontSize: 11.sp, color: Colors.white))),
-              ]),
-            )),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Security Standards',
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primarySurfaceDark,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              ...[
+                ('Key Algorithm', 'Ed25519 (256-bit)'),
+                ('Payload Encryption', 'AES-256-GCM (via Ed25519 KEM)'),
+                ('Hash Function', 'SHA-256'),
+                ('Banned', 'MD5, SHA-1, DES — never used'),
+                ('Transport', 'TLS 1.3 for server channels'),
+              ].map(
+                (e) => Padding(
+                  padding: EdgeInsets.only(bottom: 4.h),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 12.sp,
+                        color: AppColors.primarySurfaceDefault,
+                      ),
+                      SizedBox(width: 6.w),
+                      Text(
+                        '${e.$1}: ',
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          color: AppColors.secondaryTextDefault,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          e.$2,
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            color: AppColors.primaryTextDefault,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -421,7 +630,9 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
     super.dispose();
   }
 
-  void _rebuild() { if (mounted) setState(() {}); }
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _runSim() async {
     setState(() => _simStats = null);
@@ -431,22 +642,27 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
     } catch (_) {}
   }
 
-  Color _factorColor(double f) =>
-      f >= 0.8 ? AppColors.statusOnline : f >= 0.4 ? AppColors.statusPending : AppColors.statusOffline;
+  Color _factorColor(double f) => f >= 0.8
+      ? AppColors.statusOnline
+      : f >= 0.4
+      ? AppColors.statusPending
+      : AppColors.statusOffline;
 
   @override
   Widget build(BuildContext context) {
-    final factor       = _throttler.throttleFactor;
+    final factor = _throttler.throttleFactor;
     final intervalSecs = _throttler.currentIntervalSecs;
-    final battery      = _throttler.batteryLevel;
-    final rules        = _throttler.log.isNotEmpty ? _throttler.log.last.activeRules : <String>[];
-    final isSim        = _throttler.isSimulating;
+    final battery = _throttler.batteryLevel;
+    final rules = _throttler.log.isNotEmpty
+        ? _throttler.log.last.activeRules
+        : <String>[];
+    final isSim = _throttler.isSimulating;
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0A1628),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+        border: Border.all(color: AppColors.borderDefault),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,90 +672,182 @@ class _BatteryThrottlePanelState extends State<_BatteryThrottlePanel> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(12.r)),
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-              child: Row(children: [
-                Icon(Icons.battery_charging_full, size: 15.sp, color: _factorColor(factor)),
-                SizedBox(width: 8.w),
-                Text('Battery Saving Mode',
-                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white)),
-                const Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                  decoration: BoxDecoration(
-                    color: _factorColor(factor).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20.r),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.battery_charging_full,
+                    size: 15.sp,
+                    color: _factorColor(factor),
                   ),
-                  child: Text('×${factor.toStringAsFixed(2)}  ${intervalSecs}s',
-                      style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w600,
-                          color: _factorColor(factor))),
-                ),
-                SizedBox(width: 6.w),
-                Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18.sp, color: Colors.white54),
-              ]),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'Battery Saving Mode',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryTextDefault,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8.w,
+                      vertical: 3.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _factorColor(factor).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      '×${factor.toStringAsFixed(2)}  ${intervalSecs}s',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                        color: _factorColor(factor),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 6.w),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                ],
+              ),
             ),
           ),
           if (_expanded) ...[
-            Divider(height: 1, color: Colors.white12),
+            Divider(height: 1, color: AppColors.borderDefault),
             Padding(
               padding: EdgeInsets.all(12.w),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  _ThrottleStat('Battery', '$battery%${_throttler.isCharging ? ' ⚡' : ''}',
-                      battery < 30 ? AppColors.statusOffline : AppColors.statusOnline),
-                  SizedBox(width: 16.w),
-                  _ThrottleStat('Interval', '${intervalSecs}s', AppColors.primarySurfaceDefault),
-                  SizedBox(width: 16.w),
-                  _ThrottleStat('Stationary', _throttler.isStationary ? 'Yes' : 'No',
-                      _throttler.isStationary ? AppColors.statusPending : AppColors.statusOnline),
-                ]),
-                if (rules.isNotEmpty) ...[
-                  SizedBox(height: 8.h),
-                  Wrap(spacing: 6.w, runSpacing: 4.h, children: rules.map((r) => Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.statusPending.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: AppColors.statusPending.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(r, style: TextStyle(fontSize: 9.sp, color: AppColors.statusPending)),
-                  )).toList()),
-                ],
-                SizedBox(height: 10.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: isSim ? null : _runSim,
-                    icon: isSim
-                        ? SizedBox(width: 12.w, height: 12.h,
-                            child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Icon(Icons.play_arrow, size: 14.sp),
-                    label: Text(isSim ? 'Simulating…' : 'Run 10-min Simulation',
-                        style: TextStyle(fontSize: 11.sp)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primarySurfaceDefault,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 8.h),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _ThrottleStat(
+                        'Battery',
+                        '$battery%${_throttler.isCharging ? ' ⚡' : ''}',
+                        battery < 30
+                            ? AppColors.statusOffline
+                            : AppColors.statusOnline,
+                      ),
+                      SizedBox(width: 16.w),
+                      _ThrottleStat(
+                        'Interval',
+                        '${intervalSecs}s',
+                        AppColors.primarySurfaceDefault,
+                      ),
+                      SizedBox(width: 16.w),
+                      _ThrottleStat(
+                        'Stationary',
+                        _throttler.isStationary ? 'Yes' : 'No',
+                        _throttler.isStationary
+                            ? AppColors.statusPending
+                            : AppColors.statusOnline,
+                      ),
+                    ],
                   ),
-                ),
-                if (_simStats != null) ...[
+                  if (rules.isNotEmpty) ...[
+                    SizedBox(height: 8.h),
+                    Wrap(
+                      spacing: 6.w,
+                      runSpacing: 4.h,
+                      children: rules
+                          .map(
+                            (r) => Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 3.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.statusPending.withValues(
+                                  alpha: 0.1,
+                                ),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: AppColors.statusPending.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                r,
+                                style: TextStyle(
+                                  fontSize: 9.sp,
+                                  color: AppColors.statusPending,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
                   SizedBox(height: 10.h),
-                  Container(
-                    padding: EdgeInsets.all(10.w),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySurfaceDefault.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.25)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: isSim ? null : _runSim,
+                      icon: isSim
+                          ? SizedBox(
+                              width: 12.w,
+                              height: 12.h,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(Icons.play_arrow, size: 14.sp),
+                      label: Text(
+                        isSim ? 'Simulating…' : 'Run 10-min Simulation',
+                        style: TextStyle(fontSize: 11.sp),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primarySurfaceDefault,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 8.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                      ),
                     ),
-                    child: Row(children: [
-                      _SimStat('Scans saved',   '${_simStats!.totalScansSaved}'),
-                      _SimStat('Avg ×factor',   '×${_simStats!.avgThrottleFactor.toStringAsFixed(2)}'),
-                      _SimStat('Energy saved',  '${_simStats!.energySavedMj.toStringAsFixed(1)} mJ'),
-                    ]),
                   ),
+                  if (_simStats != null) ...[
+                    SizedBox(height: 10.h),
+                    Container(
+                      padding: EdgeInsets.all(10.w),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurfaceDefault.withValues(
+                          alpha: 0.08,
+                        ),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: AppColors.primarySurfaceDefault.withValues(
+                            alpha: 0.25,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _SimStat(
+                            'Scans saved',
+                            '${_simStats!.totalScansSaved}',
+                          ),
+                          _SimStat(
+                            'Avg ×factor',
+                            '×${_simStats!.avgThrottleFactor.toStringAsFixed(2)}',
+                          ),
+                          _SimStat(
+                            'Energy saved',
+                            '${_simStats!.energySavedMj.toStringAsFixed(1)} mJ',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
-              ]),
+              ),
             ),
           ],
         ],
@@ -555,11 +863,24 @@ class _ThrottleStat extends StatelessWidget {
   const _ThrottleStat(this.label, this.value, this.color);
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
-    SizedBox(height: 2.h),
-    Text(value, style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700, color: color)),
-  ]);
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: TextStyle(fontSize: 9.sp, color: AppColors.secondaryTextDefault),
+      ),
+      SizedBox(height: 2.h),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    ],
+  );
 }
 
 class _SimStat extends StatelessWidget {
@@ -568,10 +889,28 @@ class _SimStat extends StatelessWidget {
   const _SimStat(this.label, this.value);
 
   @override
-  Widget build(BuildContext context) => Expanded(child: Column(children: [
-    Text(value, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
-    Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38), textAlign: TextAlign.center),
-  ]));
+  Widget build(BuildContext context) => Expanded(
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primarySurfaceDefault,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9.sp,
+            color: AppColors.secondaryTextDefault,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -587,10 +926,23 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.end,
     children: [
-      Text(title, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: Colors.white)),
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryTextDefault,
+        ),
+      ),
       if (subtitle != null) ...[
         SizedBox(width: 8.w),
-        Text(subtitle!, style: TextStyle(fontSize: 11.sp, color: Colors.white38)),
+        Text(
+          subtitle!,
+          style: TextStyle(
+            fontSize: 11.sp,
+            color: AppColors.secondaryTextDefault,
+          ),
+        ),
       ],
     ],
   );
@@ -600,8 +952,13 @@ class _MeshStat extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
-  final Color  color;
-  const _MeshStat({required this.icon, required this.value, required this.label, required this.color});
+  final Color color;
+  const _MeshStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -612,12 +969,27 @@ class _MeshStat extends StatelessWidget {
         borderRadius: BorderRadius.circular(10.r),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
-      child: Column(children: [
-        Icon(icon, size: 18.sp, color: color),
-        SizedBox(height: 4.h),
-        Text(value, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800, color: color)),
-        Text(label, style: TextStyle(fontSize: 9.sp, color: Colors.white38)),
-      ]),
+      child: Column(
+        children: [
+          Icon(icon, size: 18.sp, color: color),
+          SizedBox(height: 4.h),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.sp,
+              color: AppColors.secondaryTextDefault,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -627,17 +999,21 @@ class _DemoActionRow extends StatelessWidget {
   const _DemoActionRow({required this.children});
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: children.map((c) => Expanded(child: c)).toList(),
-  );
+  Widget build(BuildContext context) =>
+      Row(children: children.map((c) => Expanded(child: c)).toList());
 }
 
 class _DemoBtn extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color  color;
+  final Color color;
   final VoidCallback? onTap;
-  const _DemoBtn({required this.icon, required this.label, required this.color, this.onTap});
+  const _DemoBtn({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -650,12 +1026,22 @@ class _DemoBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(10.r),
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 8.h),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 18.sp, color: color),
-            SizedBox(height: 3.h),
-            Text(label, style: TextStyle(fontSize: 9.sp, fontWeight: FontWeight.w600, color: color),
-                textAlign: TextAlign.center),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18.sp, color: color),
+              SizedBox(height: 3.h),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -667,7 +1053,12 @@ class _InfoCard extends StatelessWidget {
   final Color color;
   final String title;
   final String body;
-  const _InfoCard({required this.icon, required this.color, required this.title, required this.body});
+  const _InfoCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.body,
+  });
 
   @override
   Widget build(BuildContext context) => Container(
@@ -677,15 +1068,37 @@ class _InfoCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12.r),
       border: Border.all(color: color.withValues(alpha: 0.3)),
     ),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 20.sp, color: color),
-      SizedBox(width: 10.w),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: color)),
-        SizedBox(height: 4.h),
-        Text(body, style: TextStyle(fontSize: 11.sp, color: Colors.white54, height: 1.4)),
-      ])),
-    ]),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20.sp, color: color),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                body,
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  color: AppColors.secondaryTextDefault,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -703,31 +1116,74 @@ class _LocalNodeCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isRelay
-              ? [Colors.deepPurple.shade900, Colors.deepPurple.shade700]
-              : [const Color(0xFF0A3D62), const Color(0xFF1A5276)],
+              ? [
+                  const Color(0xFF4A148C).withValues(alpha: 0.12),
+                  const Color(0xFF7B1FA2).withValues(alpha: 0.06),
+                ]
+              : [
+                  AppColors.primarySurfaceDefault.withValues(alpha: 0.12),
+                  AppColors.primarySurfaceTint,
+                ],
         ),
         borderRadius: BorderRadius.circular(14.r),
-      ),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 24.r,
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
-              size: 22.sp, color: Colors.white),
+        border: Border.all(
+          color: isRelay
+              ? AppColors.nodeDroneBase.withValues(alpha: 0.3)
+              : AppColors.primarySurfaceDefault.withValues(alpha: 0.3),
         ),
-        SizedBox(width: 12.w),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(summary.localNodeName,
-              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700, color: Colors.white)),
-          SizedBox(height: 2.h),
-          Text(isRelay ? 'Role: RELAY NODE' : 'Role: CLIENT NODE',
-              style: TextStyle(fontSize: 11.sp, color: Colors.white70)),
-          SizedBox(height: 2.h),
-          Text(summary.localRoleReason,
-              style: TextStyle(fontSize: 10.sp, color: Colors.white54), maxLines: 2, overflow: TextOverflow.ellipsis),
-        ])),
-        _RoleBadge(isRelay: isRelay),
-      ]),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24.r,
+            backgroundColor: isRelay
+                ? AppColors.nodeDroneBase.withValues(alpha: 0.15)
+                : AppColors.primarySurfaceDefault.withValues(alpha: 0.15),
+            child: Icon(
+              isRelay ? Icons.cell_tower : Icons.phone_android,
+              size: 22.sp,
+              color: isRelay
+                  ? AppColors.nodeDroneBase
+                  : AppColors.primarySurfaceDefault,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  summary.localNodeName,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  isRelay ? 'Role: RELAY NODE' : 'Role: CLIENT NODE',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  summary.localRoleReason,
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          _RoleBadge(isRelay: isRelay),
+        ],
+      ),
     );
   }
 }
@@ -740,12 +1196,21 @@ class _RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
     decoration: BoxDecoration(
-      color: (isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2).withValues(alpha: 0.3),
+      color: (isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2)
+          .withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(20.r),
-      border: Border.all(color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2),
+      border: Border.all(
+        color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2,
+      ),
     ),
-    child: Text(isRelay ? 'RELAY' : 'CLIENT',
-        style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w800, color: Colors.white)),
+    child: Text(
+      isRelay ? 'RELAY' : 'CLIENT',
+      style: TextStyle(
+        fontSize: 10.sp,
+        fontWeight: FontWeight.w800,
+        color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2,
+      ),
+    ),
   );
 }
 
@@ -757,108 +1222,198 @@ class _NodeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOnline  = node.isConnected;
-    final isRelay   = node.isRelay;
+    final isOnline = node.isConnected;
+    final isRelay = node.isRelay;
     final signalPct = ((node.signalStrength + 100) / 70).clamp(0.0, 1.0);
-    final battColor = node.batteryLevel > 50 ? AppColors.statusOnline : node.batteryLevel > 25 ? AppColors.statusPending : AppColors.statusOffline;
+    final battColor = node.batteryLevel > 50
+        ? AppColors.statusOnline
+        : node.batteryLevel > 25
+        ? AppColors.statusPending
+        : AppColors.statusOffline;
 
     return Material(
-      color: const Color(0xFF122033),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(12.r),
       child: InkWell(
         borderRadius: BorderRadius.circular(12.r),
         onTap: isOnline
             ? () => Navigator.pushNamed(
-                  context,
-                  Routes.meshChat,
-                  arguments: {
-                    'peerNodeUuid': node.nodeUuid,
-                    'peerName': node.displayName,
-                  },
-                )
+                context,
+                Routes.meshChat,
+                arguments: {
+                  'peerNodeUuid': node.nodeUuid,
+                  'peerName': node.displayName,
+                },
+              )
             : null,
         child: Container(
           padding: EdgeInsets.all(12.w),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: isOnline
-                ? (isRelay ? AppColors.nodeDroneBase : AppColors.primarySurfaceDefault).withValues(alpha: 0.4)
-                : Colors.white12),
+            border: Border.all(
+              color: isOnline
+                  ? (isRelay
+                            ? AppColors.nodeDroneBase
+                            : AppColors.primarySurfaceDefault)
+                        .withValues(alpha: 0.4)
+                  : AppColors.borderDefault,
+            ),
           ),
-          child: Row(children: [
-            Stack(children: [
-              CircleAvatar(
-                radius: 20.r,
-                backgroundColor: (isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2).withValues(alpha: 0.15),
-                child: Icon(isRelay ? Icons.cell_tower : Icons.phone_android,
-                    size: 18.sp, color: isRelay ? AppColors.nodeDroneBase : AppColors.priorityP2),
-              ),
-              Positioned(
-                right: 0, bottom: 0,
-                child: Container(
-                  width: 10.w, height: 10.w,
-                  decoration: BoxDecoration(
-                    color: isOnline ? AppColors.statusOnline : AppColors.statusIdle,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF122033), width: 1.5),
-                  ),
-                ),
-              ),
-            ]),
-            SizedBox(width: 12.w),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(node.displayName,
-                    style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600, color: Colors.white),
-                    overflow: TextOverflow.ellipsis)),
-                if (isRelay)
-                  _SmallChip('RELAY', AppColors.nodeDroneBase),
-              ]),
-              SizedBox(height: 4.h),
-              Row(children: [
-                Icon(Icons.signal_cellular_alt, size: 12.sp, color: Colors.white38),
-                SizedBox(width: 3.w),
-                SizedBox(
-                  width: 50.w,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4.r),
-                    child: LinearProgressIndicator(
-                      value: signalPct, minHeight: 4.h,
-                      backgroundColor: Colors.white12,
-                      color: signalPct > 0.5 ? AppColors.statusOnline : AppColors.statusPending,
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 20.r,
+                    backgroundColor:
+                        (isRelay
+                                ? AppColors.nodeDroneBase
+                                : AppColors.priorityP2)
+                            .withValues(alpha: 0.1),
+                    child: Icon(
+                      isRelay ? Icons.cell_tower : Icons.phone_android,
+                      size: 18.sp,
+                      color: isRelay
+                          ? AppColors.nodeDroneBase
+                          : AppColors.priorityP2,
                     ),
                   ),
-                ),
-                SizedBox(width: 10.w),
-                Icon(Icons.battery_full, size: 12.sp, color: battColor),
-                SizedBox(width: 3.w),
-                Text('${node.batteryLevel.round()}%',
-                    style: TextStyle(fontSize: 10.sp, color: battColor)),
-              ]),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(isOnline ? 'Connected' : 'Offline',
-                  style: TextStyle(fontSize: 10.sp, color: isOnline ? AppColors.statusOnline : AppColors.statusIdle)),
-              SizedBox(height: 4.h),
-              if (isOnline)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8.r),
-                    border: Border.all(color: Colors.teal.withValues(alpha: 0.4)),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 10.w,
+                      height: 10.w,
+                      decoration: BoxDecoration(
+                        color: isOnline
+                            ? AppColors.statusOnline
+                            : AppColors.statusIdle,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.chat_bubble_outline, size: 10.sp, color: Colors.teal),
-                    SizedBox(width: 3.w),
-                    Text('Chat', style: TextStyle(fontSize: 10.sp, color: Colors.teal, fontWeight: FontWeight.w600)),
-                  ]),
-                )
-              else
-                Text('${node.signalStrength} dBm',
-                    style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
-            ]),
-          ]),
+                ],
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            node.displayName,
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryTextDefault,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isRelay)
+                          _SmallChip('RELAY', AppColors.nodeDroneBase),
+                      ],
+                    ),
+                    SizedBox(height: 4.h),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.signal_cellular_alt,
+                          size: 12.sp,
+                          color: AppColors.secondaryTextDefault,
+                        ),
+                        SizedBox(width: 3.w),
+                        SizedBox(
+                          width: 50.w,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4.r),
+                            child: LinearProgressIndicator(
+                              value: signalPct,
+                              minHeight: 4.h,
+                              backgroundColor: AppColors.borderDefault,
+                              color: signalPct > 0.5
+                                  ? AppColors.statusOnline
+                                  : AppColors.statusPending,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 10.w),
+                        Icon(Icons.battery_full, size: 12.sp, color: battColor),
+                        SizedBox(width: 3.w),
+                        Text(
+                          '${node.batteryLevel.round()}%',
+                          style: TextStyle(fontSize: 10.sp, color: battColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    isOnline ? 'Connected' : 'Offline',
+                    style: TextStyle(
+                      fontSize: 10.sp,
+                      color: isOnline
+                          ? AppColors.statusOnline
+                          : AppColors.statusIdle,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  if (isOnline)
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 3.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurfaceDefault.withValues(
+                          alpha: 0.1,
+                        ),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: AppColors.primarySurfaceDefault.withValues(
+                            alpha: 0.4,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 10.sp,
+                            color: AppColors.primarySurfaceDefault,
+                          ),
+                          SizedBox(width: 3.w),
+                          Text(
+                            'Chat',
+                            style: TextStyle(
+                              fontSize: 10.sp,
+                              color: AppColors.primarySurfaceDefault,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      '${node.signalStrength} dBm',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        color: AppColors.secondaryTextDefault,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -875,52 +1430,114 @@ class _MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hopsLeft = msg.maxHops - msg.hopCount;
-    final ttlPct   = 1.0 - (DateTime.now().difference(msg.createdAt).inHours / msg.ttlHours).clamp(0.0, 1.0);
+    final ttlPct =
+        1.0 -
+        (DateTime.now().difference(msg.createdAt).inHours / msg.ttlHours).clamp(
+          0.0,
+          1.0,
+        );
 
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: const Color(0xFF122033),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: msg.isDelivered
-            ? AppColors.primarySurfaceDefault.withValues(alpha: 0.3)
-            : AppColors.priorityP2.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: msg.isDelivered
+              ? AppColors.primarySurfaceDefault.withValues(alpha: 0.3)
+              : AppColors.priorityP2.withValues(alpha: 0.3),
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(msg.isDelivered ? Icons.check_circle : Icons.hourglass_top,
-              size: 16.sp, color: msg.isDelivered ? AppColors.statusOnline : AppColors.priorityP2),
-          SizedBox(width: 8.w),
-          Expanded(child: Text(msg.messageType.toUpperCase(),
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: Colors.white))),
-          _SmallChip('${msg.hopCount}/${msg.maxHops} hops',
-              hopsLeft > 0 ? AppColors.priorityP2 : AppColors.statusPending),
-        ]),
-        SizedBox(height: 6.h),
-        Row(children: [
-          Text(_shortUuid(msg.senderNodeUuid),
-              style: TextStyle(fontSize: 10.sp, color: Colors.white54)),
-          Icon(Icons.arrow_forward, size: 11.sp, color: Colors.white38),
-          Text(_shortUuid(msg.recipientNodeUuid),
-              style: TextStyle(fontSize: 10.sp, color: Colors.white54)),
-        ]),
-        SizedBox(height: 6.h),
-        // TTL bar
-        Row(children: [
-          Icon(Icons.timer_outlined, size: 11.sp, color: Colors.white38),
-          SizedBox(width: 4.w),
-          Text('TTL ${msg.ttlHours}h', style: TextStyle(fontSize: 10.sp, color: Colors.white38)),
-          SizedBox(width: 8.w),
-          Expanded(child: ClipRRect(
-            borderRadius: BorderRadius.circular(4.r),
-            child: LinearProgressIndicator(
-              value: ttlPct, minHeight: 4.h,
-              backgroundColor: Colors.white12,
-              color: ttlPct > 0.5 ? AppColors.statusOnline : ttlPct > 0.2 ? AppColors.statusPending : AppColors.statusOffline,
-            ),
-          )),
-        ]),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                msg.isDelivered ? Icons.check_circle : Icons.hourglass_top,
+                size: 16.sp,
+                color: msg.isDelivered
+                    ? AppColors.statusOnline
+                    : AppColors.priorityP2,
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  msg.messageType.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+              ),
+              _SmallChip(
+                '${msg.hopCount}/${msg.maxHops} hops',
+                hopsLeft > 0 ? AppColors.priorityP2 : AppColors.statusPending,
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Text(
+                _shortUuid(msg.senderNodeUuid),
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward,
+                size: 11.sp,
+                color: AppColors.secondaryTextDefault,
+              ),
+              Text(
+                _shortUuid(msg.recipientNodeUuid),
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          // TTL bar
+          Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 11.sp,
+                color: AppColors.secondaryTextDefault,
+              ),
+              SizedBox(width: 4.w),
+              Text(
+                'TTL ${msg.ttlHours}h',
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  color: AppColors.secondaryTextDefault,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4.r),
+                  child: LinearProgressIndicator(
+                    value: ttlPct,
+                    minHeight: 4.h,
+                    backgroundColor: AppColors.borderDefault,
+                    color: ttlPct > 0.5
+                        ? AppColors.statusOnline
+                        : ttlPct > 0.2
+                        ? AppColors.statusPending
+                        : AppColors.statusOffline,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -944,23 +1561,56 @@ class _KeyCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(10.w),
       decoration: BoxDecoration(
-        color: (isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase).withValues(alpha: 0.07),
+        color:
+            (isLocal
+                    ? AppColors.primarySurfaceDefault
+                    : AppColors.nodeDroneBase)
+                .withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(10.r),
         border: Border.all(
-            color: (isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase).withValues(alpha: 0.3)),
+          color:
+              (isLocal
+                      ? AppColors.primarySurfaceDefault
+                      : AppColors.nodeDroneBase)
+                  .withValues(alpha: 0.3),
+        ),
       ),
-      child: Row(children: [
-        Icon(Icons.vpn_key_outlined, size: 16.sp,
-            color: isLocal ? AppColors.primarySurfaceDefault : AppColors.nodeDroneBase),
-        SizedBox(width: 8.w),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(node.displayName,
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600, color: Colors.white)),
-          Text(keySnippet,
-              style: TextStyle(fontSize: 10.sp, color: Colors.white38, fontFamily: 'monospace')),
-        ])),
-        if (isLocal) _SmallChip('LOCAL', AppColors.primarySurfaceDefault),
-      ]),
+      child: Row(
+        children: [
+          Icon(
+            Icons.vpn_key_outlined,
+            size: 16.sp,
+            color: isLocal
+                ? AppColors.primarySurfaceDefault
+                : AppColors.nodeDroneBase,
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  node.displayName,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryTextDefault,
+                  ),
+                ),
+                Text(
+                  keySnippet,
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    color: AppColors.secondaryTextDefault,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isLocal) _SmallChip('LOCAL', AppColors.primarySurfaceDefault),
+        ],
+      ),
     );
   }
 }
@@ -982,7 +1632,7 @@ class _PayloadInspectorState extends State<_PayloadInspector> {
   @override
   Widget build(BuildContext context) {
     final encrypted = widget.msg.encryptedPayload;
-    final hash      = widget.msg.payloadHash;
+    final hash = widget.msg.payloadHash;
     final displayText = _showEncrypted
         ? (encrypted.length > 80 ? '${encrypted.substring(0, 80)}…' : encrypted)
         : hash;
@@ -992,40 +1642,77 @@ class _PayloadInspectorState extends State<_PayloadInspector> {
       decoration: BoxDecoration(
         color: AppColors.primarySurfaceDefault.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10.r),
-        border: Border.all(color: AppColors.primarySurfaceDefault.withValues(alpha: 0.2)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.lock, size: 14.sp, color: AppColors.primarySurfaceDefault),
-          SizedBox(width: 6.w),
-          Text('Message — ${widget.msg.messageType}',
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700, color: AppColors.primarySurfaceDefault)),
-          const Spacer(),
-          GestureDetector(
-            onTap: () => setState(() => _showEncrypted = !_showEncrypted),
-            child: _SmallChip(_showEncrypted ? 'Cipher' : 'Hash', Colors.teal),
-          ),
-        ]),
-        SizedBox(height: 6.h),
-        Container(
-          padding: EdgeInsets.all(8.w),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(6.r),
-          ),
-          child: Text(displayText,
-              style: TextStyle(fontSize: 10.sp, color: AppColors.primarySurfaceLight, fontFamily: 'monospace')),
+        border: Border.all(
+          color: AppColors.primarySurfaceDefault.withValues(alpha: 0.2),
         ),
-        SizedBox(height: 6.h),
-        Row(children: [
-          Icon(Icons.info_outline, size: 11.sp, color: Colors.white38),
-          SizedBox(width: 4.w),
-          Expanded(child: Text(
-            'Relay nodes see only ciphertext — cannot read payload contents.',
-            style: TextStyle(fontSize: 10.sp, color: Colors.white38),
-          )),
-        ]),
-      ]),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.lock,
+                size: 14.sp,
+                color: AppColors.primarySurfaceDefault,
+              ),
+              SizedBox(width: 6.w),
+              Text(
+                'Message — ${widget.msg.messageType}',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primarySurfaceDefault,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => setState(() => _showEncrypted = !_showEncrypted),
+                child: _SmallChip(
+                  _showEncrypted ? 'Cipher' : 'Hash',
+                  AppColors.primarySurfaceDefault,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: AppColors.neutralSurfaceTint,
+              borderRadius: BorderRadius.circular(6.r),
+            ),
+            child: Text(
+              displayText,
+              style: TextStyle(
+                fontSize: 10.sp,
+                color: AppColors.primarySurfaceDark,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 11.sp,
+                color: AppColors.secondaryTextDefault,
+              ),
+              SizedBox(width: 4.w),
+              Expanded(
+                child: Text(
+                  'Relay nodes see only ciphertext — cannot read payload contents.',
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    color: AppColors.secondaryTextDefault,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1041,18 +1728,31 @@ class _HopTile extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     decoration: BoxDecoration(
-      color: Colors.teal.withValues(alpha: 0.05),
+      color: AppColors.primarySurfaceDefault.withValues(alpha: 0.05),
       borderRadius: BorderRadius.circular(8.r),
-      border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+      border: Border.all(
+        color: AppColors.primarySurfaceDefault.withValues(alpha: 0.2),
+      ),
     ),
-    child: Row(children: [
-      Icon(Icons.swap_horiz, size: 14.sp, color: Colors.teal),
-      SizedBox(width: 8.w),
-      Expanded(child: Text(
-        'Relayed via ${snapshot.labelForNode(log.relayNodeUuid)}  ·  ${_timeAgo(log.relayedAt)}',
-        style: TextStyle(fontSize: 10.sp, color: Colors.white54),
-      )),
-    ]),
+    child: Row(
+      children: [
+        Icon(
+          Icons.swap_horiz,
+          size: 14.sp,
+          color: AppColors.primarySurfaceDefault,
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            'Relayed via ${snapshot.labelForNode(log.relayNodeUuid)}  ·  ${_timeAgo(log.relayedAt)}',
+            style: TextStyle(
+              fontSize: 10.sp,
+              color: AppColors.secondaryTextDefault,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 
   static String _timeAgo(DateTime dt) {
@@ -1072,28 +1772,41 @@ class _EmptyMesh extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(vertical: 32.h, horizontal: 24.w),
     decoration: BoxDecoration(
-      color: const Color(0xFF122033),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(12.r),
-      border: Border.all(color: Colors.white12),
+      border: Border.all(color: AppColors.borderDefault),
     ),
-    child: Column(children: [
-      SizedBox(
-        width: 48.w, height: 48.w,
-        child: CircularProgressIndicator(
-          strokeWidth: 2.5,
-          color: Colors.tealAccent.withValues(alpha: 0.7),
+    child: Column(
+      children: [
+        SizedBox(
+          width: 48.w,
+          height: 48.w,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: AppColors.primarySurfaceDefault,
+          ),
         ),
-      ),
-      SizedBox(height: 16.h),
-      Text('Scanning for nearby devices',
-          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600, color: Colors.white70)),
-      SizedBox(height: 6.h),
-      Text(
-        'Make sure Bluetooth is on.\nOther phones running Digital Delta will appear here automatically.',
-        style: TextStyle(fontSize: 11.sp, color: Colors.white38, height: 1.5),
-        textAlign: TextAlign.center,
-      ),
-    ]),
+        SizedBox(height: 16.h),
+        Text(
+          'Scanning for nearby devices',
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryTextDefault,
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          'Make sure Bluetooth is on.\nOther phones running Digital Delta will appear here automatically.',
+          style: TextStyle(
+            fontSize: 11.sp,
+            color: AppColors.secondaryTextDefault,
+            height: 1.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
   );
 }
 
@@ -1104,18 +1817,32 @@ class _EmptyQueueCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.all(20.w),
     decoration: BoxDecoration(
-      color: const Color(0xFF122033),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(12.r),
-      border: Border.all(color: Colors.white12),
+      border: Border.all(color: AppColors.borderDefault),
     ),
-    child: Column(children: [
-      Icon(Icons.inbox, size: 40.sp, color: Colors.white24),
-      SizedBox(height: 8.h),
-      Text('Queue is empty', style: TextStyle(fontSize: 13.sp, color: Colors.white54)),
-      SizedBox(height: 4.h),
-      Text('Tap "Queue Msg" to create a store-and-forward relay message.',
-          style: TextStyle(fontSize: 11.sp, color: Colors.white38), textAlign: TextAlign.center),
-    ]),
+    child: Column(
+      children: [
+        Icon(Icons.inbox, size: 40.sp, color: AppColors.disabledTextDefault),
+        SizedBox(height: 8.h),
+        Text(
+          'Queue is empty',
+          style: TextStyle(
+            fontSize: 13.sp,
+            color: AppColors.secondaryTextDefault,
+          ),
+        ),
+        SizedBox(height: 4.h),
+        Text(
+          'Tap "Queue Msg" to create a store-and-forward relay message.',
+          style: TextStyle(
+            fontSize: 11.sp,
+            color: AppColors.secondaryTextDefault,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
   );
 }
 
@@ -1123,7 +1850,7 @@ class _EmptyQueueCard extends StatelessWidget {
 
 class _SmallChip extends StatelessWidget {
   final String label;
-  final Color  color;
+  final Color color;
   const _SmallChip(this.label, this.color);
 
   @override
@@ -1133,6 +1860,13 @@ class _SmallChip extends StatelessWidget {
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(20.r),
     ),
-    child: Text(label, style: TextStyle(fontSize: 9.sp, fontWeight: FontWeight.w700, color: color)),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 9.sp,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    ),
   );
 }
